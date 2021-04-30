@@ -22,10 +22,13 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
+# from flask_caching import Cache
 import os
+import uuid
 
 STANZA_DIR = f'{os.path.abspath(os.getcwd())}/data/stanza_resources'
 SBERT_PATH = f'{os.path.abspath(os.getcwd())}/data/encoders/xlm-r-100langs-bert-base-nli-stsb-mean-tokens'
+user_id = str(uuid.uuid4())
 
 # Sentence encoders and dimensionality reduction methods
 encoders = {
@@ -63,9 +66,25 @@ encoder = encoders['SentenceBERT'](model_dir=SBERT_PATH)
 # app layout
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 app = dash.Dash(prevent_initial_callbacks=True)
+# cache = Cache(app.server, config={
+#     #'CACHE_TYPE': 'redis',
+#     # Note that filesystem cache doesn't work on systems with ephemeral
+#     # filesystems like Heroku.
+#     'CACHE_TYPE': 'filesystem',
+#     'CACHE_DIR': 'cache-directory',
+#
+#     # should be equal to maximum number of users on the app at a single time
+#     # higher numbers will store more data in the filesystem / redis cache
+#     'CACHE_THRESHOLD': 200
+# })
 # control layout: https://dash-bootstrap-components.opensource.faculty.ai/docs/components/layout/
-app.layout = html.Div([
-    html.H1('Multilingual text exploration'),
+
+def serve_layout():
+    session_id = str(uuid.uuid4())
+
+    return html.Div([
+    html.H1(f'Multilingual text exploration: {session_id}'),
+    dcc.Store(data=session_id, id='session-id'),
 
 html.H4('---'*100),
 html.H2('1. Configure data'),
@@ -113,6 +132,21 @@ dcc.Loading(id="loading-1", children=[html.Div(id="loading-output-1")], type="de
 
     html.H4('---'*100),
 html.H4('1.2 Upload your data (txt file):'),
+
+html.H4('Select language:'),
+    dcc.Dropdown(id="select_language",
+                 options=[
+                     {"label": "Slovene", "value": 'slovene'},
+                     {"label": "English", "value": 'english'},
+                     {"label": "German", "value": 'german'},
+                 ],
+                 multi=False,
+                 placeholder="Select language",
+                 # value='Candas',
+                 style={'width': "40%"}
+                 ),
+    html.Div(id='select_language-output-container'),
+
     dcc.Upload(
         id='upload-data',
         children=html.Div([
@@ -200,6 +234,9 @@ html.Div(dcc.Graph(id='main-fig')),
 
 ])
 
+app.layout = serve_layout
+
+
 # stored values and metavariables
 stored_values = {}
 
@@ -220,10 +257,12 @@ stored_values = {}
     State('dropdown', 'options'),
     State('dropdown', 'value'),
     State('select_dataset', 'value'),
+    State('select_language', 'value'),
     State('select_rows', 'value'),
     State('enter_num_of_sentences', 'value'),
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
+    State('session-id', 'data')
 )
 def update_graph(
         # inputs
@@ -238,11 +277,14 @@ def update_graph(
         experiments,
         dropdown_value,
         dataset,
+        langid,
         row,
         num_of_sentences,
 
         list_of_names,
         list_of_dates,
+
+        session_id
 ):
     # for debbuging
     ctx = dash.callback_context
@@ -252,6 +294,10 @@ def update_graph(
         'inputs': ctx.inputs
     }
     # print(ctx_msg)
+
+    # save session in stored_values if it not exists yet
+    if session_id not in stored_values.keys():
+        stored_values[session_id] = {}
 
     example_id = ''
     # check for special triggers
@@ -263,8 +309,8 @@ def update_graph(
             example_id = f'uploaded_example_{list_of_names[0]}'
 
         elif ctx_msg['triggered'][0]['prop_id'] in prop_ids:
-            assert 'current_example' in stored_values.keys()
-            example_id = stored_values['current_example']
+            assert 'current_example' in stored_values[session_id].keys()
+            example_id = stored_values[session_id]['current_example']
 
     # check if experiment has been run already
     if dropdown_value:
@@ -275,12 +321,12 @@ def update_graph(
     if not example_id:
         example_id = f'dataset:{dataset}_example:{row}_numOfSents:{num_of_sentences}'
 
-    stored_values['current_example'] = example_id
+    stored_values[session_id]['current_example'] = example_id
 
     print(example_id)
 
     # check if example with the same id has already run, else run it from scratch
-    if not example_id in stored_values.keys():
+    if not example_id in stored_values[session_id].keys():
         if 'Candas' in example_id:
             sentences = get_candas(nlp, row)
         elif 'ParlaMint' in example_id:
@@ -289,12 +335,25 @@ def update_graph(
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
             decoded = decoded.decode('utf-8').replace('\n', ' ')
-            sentences = get_uploaded_example(nlp, decoded)
+            sentences = get_uploaded_example(nlp, decoded, langid)
         else:
             return go.Figure()
 
-        # todo: add '<br>' tags after encoder
+        # calculate word embeddings
         embeddings = encoder.encode_sentences(sentences, batch_size=4)
+
+        # wrap sentences with '<br>' tags for improved visualization
+        wraped_sentences = []
+        for sentence in sentences:
+            wraped_sentence = []
+            for idx, word in enumerate(sentence.split()):
+                if idx % 20 == 0:
+                    wraped_sentence.append(f'<br>{word}')
+                else:
+                    wraped_sentence.append(word)
+            wraped_sentence = ' '.join(wraped_sentence)
+            wraped_sentences.append(wraped_sentence)
+        sentences = wraped_sentences
 
         # similarity matrix
         sim_mat = cosine_similarity(embeddings)
@@ -340,9 +399,9 @@ def update_graph(
         rm = reduction_method(**reduction_methods_params[rec_method_name])
         pos = rm.fit_transform(embeddings)
 
-        stored_values[example_id] = (sentences, embeddings, sim_mat, score_list, pos)
+        stored_values[session_id][example_id] = (sentences, embeddings, sim_mat, score_list, pos)
     else:
-        sentences, embeddings, sim_mat, score_list, pos = stored_values[example_id]
+        sentences, embeddings, sim_mat, score_list, pos = stored_values[session_id][example_id]
 
     # FEATURE: zoom nodes that contain keyword
     if keyword:

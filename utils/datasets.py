@@ -1,17 +1,21 @@
 import pandas as pd
 import os
 import random
+import nltk
+nltk.download('punkt')
 
-def get_uploaded_example(nlp, decoded):
+def get_uploaded_example(nlp, decoded, langid='slovene'):
 
-    def get_sentences(text):
-        doc = nlp(text)
-        sentences = []
-        for sent in doc.sentences:
-            sentences.append(
-                ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
-        return sentences
-    sentences = get_sentences(decoded)
+    # def get_sentences(text):
+    #     doc = nlp(text)
+    #     sentences = []
+    #     for sent in doc.sentences:
+    #         sentences.append(
+    #             ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
+    #     return sentences
+    # sentences = get_sentences(decoded)
+
+    sentences = nltk.sent_tokenize(decoded, language=langid)
     return sentences
 
 
@@ -36,13 +40,13 @@ def get_parlamint(row):
 
 def get_candas(nlp, row):
 
-    def get_sentences(text):
-        doc = nlp(text)
-        sentences = []
-        for sent in doc.sentences:
-            sentences.append(
-                ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
-        return sentences
+    # def get_sentences(text):
+    #     doc = nlp(text)
+    #     sentences = []
+    #     for sent in doc.sentences:
+    #         sentences.append(
+    #             ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
+    #     return sentences
 
     df = pd.DataFrame()
     for file in os.scandir('./data/docs'):
@@ -52,7 +56,8 @@ def get_candas(nlp, row):
     df.reset_index(inplace=True)
 
     text = df['Text'].get(row)
-    sentences = get_sentences(text)
+    # sentences = get_sentences(text)
+    sentences = nltk.sent_tokenize(text, "slovene")
     return sentences
 
 def get_kas(nlp, row):

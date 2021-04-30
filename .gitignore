@@ -1,3 +1,4 @@
 data/encoders
 data/stanza_resources
 venv
+cache
