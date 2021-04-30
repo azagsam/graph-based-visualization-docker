@@ -22,6 +22,10 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
+import os
+
+STANZA_DIR = f'{os.path.abspath(os.getcwd())}/data/stanza_resources'
+SBERT_PATH = f'{os.path.abspath(os.getcwd())}/data/encoders/xlm-r-100langs-bert-base-nli-stsb-mean-tokens'
 
 # Sentence encoders and dimensionality reduction methods
 encoders = {
@@ -50,12 +54,11 @@ cluster_params = {
     'gaussian_mixture': {'n_components': 3, 'covariance_type': 'full'}
 }
 
-# import slovene tokenizer
-stanza.download('sl')
-nlp = stanza.Pipeline('sl', use_gpu=True, processors='tokenize')
+# import slovene tokenizer TODO: add langid and nltk tokenizer
+nlp = stanza.Pipeline('sl', dir=STANZA_DIR, use_gpu=True, processors='tokenize')
 
 # select and start encoder
-encoder = encoders['SentenceBERT']()
+encoder = encoders['SentenceBERT'](model_dir=SBERT_PATH)
 
 # app layout
 external_stylesheets = [dbc.themes.BOOTSTRAP]
@@ -222,7 +225,8 @@ stored_values = {}
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
 )
-def update_graph(  # inputs
+def update_graph(
+        # inputs
         submit,
         reload,
         keyword,
@@ -452,4 +456,4 @@ def update_graph(  # inputs
     return fig, experiments, '', 'Experiment was loaded!'
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True, use_reloader=False)  # Turn off reloader if inside Jupyter
+    app.run_server(host='0.0.0.0', debug=True)  # Turn off reloader if inside Jupyter
