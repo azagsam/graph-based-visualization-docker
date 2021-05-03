@@ -1,64 +1,32 @@
 import pandas as pd
 import os
-import random
 import nltk
 nltk.download('punkt')
 
-def get_uploaded_example(nlp, decoded, langid='slovene'):
 
-    # def get_sentences(text):
-    #     doc = nlp(text)
-    #     sentences = []
-    #     for sent in doc.sentences:
-    #         sentences.append(
-    #             ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
-    #     return sentences
-    # sentences = get_sentences(decoded)
-
+def get_uploaded_example(decoded, langid):
     sentences = nltk.sent_tokenize(decoded, language=langid)
     return sentences
 
 
-def get_parlamint(row):
-    df = pd.read_csv('/home/ales/Documents/Extended/datasets/ParlaMint/output/ParlaMint-SI.csv')
-    df_filtered = df[df['SPEAKER_ROLE'] == 'regular']
-    df_filtered.reset_index(inplace=True)
-
-    g = df_filtered.groupby('SESSION_ID')
-
-    for idx, (name, data) in enumerate(g):
-        sentences = []
-        if idx == row:
-            for speech in data['TEXT_sentences']:
-                # print('\n', speech)
-                sents = speech.split('</s>')
-                for s in sents:
-                    s_with_break = " ".join([f'<br>{word}' if idx % 20 == 0 else word for idx, word in enumerate(s.split())])
-                    sentences.append(s_with_break)
-            return sentences
+def get_generic_translations():
+    with open('data/multiple-sentences-translations.txt') as f:
+        sentences = [line.strip() for line in f]
+        return sentences
 
 
-def get_candas(nlp, row):
-
-    # def get_sentences(text):
-    #     doc = nlp(text)
-    #     sentences = []
-    #     for sent in doc.sentences:
-    #         sentences.append(
-    #             ' '.join([f'<br>{word.text}' if idx % 20 == 0 else word.text for idx, word in enumerate(sent.words)]))
-    #     return sentences
-
-    df = pd.DataFrame()
-    for file in os.scandir('./data/docs'):
-        f = pd.read_table(file.path)
-        f['file'] = [file.name] * len(f)
-        df = pd.concat([df, f])
-    df.reset_index(inplace=True)
-
-    text = df['Text'].get(row)
-    # sentences = get_sentences(text)
+def get_candas_doc(candas_keyword):
+    df = pd.read_table(f'./data/candas/{candas_keyword}.tsv')
+    text = df['Text'].get(0)
     sentences = nltk.sent_tokenize(text, "slovene")
     return sentences
 
-def get_kas(nlp, row):
-    ...
+
+def get_candas_doc_metadata(candas_keyword):
+    df = pd.read_table(f'./data/candas_metadata/{candas_keyword}_sentences.tsv')
+    sentences = df['sentence'].tolist()
+    metadata = []
+    for source, sentiment, year, bias in zip(df['source'], df['sentiment'], df['year_published'], df['bias']):
+        meta = "<br>".join([f'Source: {source}', f'Sentiment: {sentiment}', f'Year: {year}', f'Bias: {bias}'])
+        metadata.append(meta)
+    return sentences, metadata

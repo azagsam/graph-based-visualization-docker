@@ -1,3 +1,4 @@
+import pandas as pd
 import plotly.graph_objects as go
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -9,10 +10,9 @@ from utils.helpers import load_sentences_from_file, load_sentences_from_AutoSent
     load_sentences_from_cro_comments, scale_centrality_scores, \
     get_context_for_sentences
 
-import stanza
 from utils.encoders import SentenceBERT
 
-from utils.datasets import get_candas, get_parlamint, get_kas, get_uploaded_example
+from utils.datasets import get_candas_doc, get_candas_doc_metadata, get_uploaded_example, get_generic_translations
 
 import numpy as np
 
@@ -22,13 +22,10 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
-# from flask_caching import Cache
 import os
 import uuid
 
-STANZA_DIR = f'{os.path.abspath(os.getcwd())}/data/stanza_resources'
 SBERT_PATH = f'{os.path.abspath(os.getcwd())}/data/encoders/xlm-r-100langs-bert-base-nli-stsb-mean-tokens'
-user_id = str(uuid.uuid4())
 
 # Sentence encoders and dimensionality reduction methods
 encoders = {
@@ -57,185 +54,172 @@ cluster_params = {
     'gaussian_mixture': {'n_components': 3, 'covariance_type': 'full'}
 }
 
-# import slovene tokenizer TODO: add langid and nltk tokenizer
-nlp = stanza.Pipeline('sl', dir=STANZA_DIR, use_gpu=True, processors='tokenize')
-
 # select and start encoder
 encoder = encoders['SentenceBERT'](model_dir=SBERT_PATH)
 
 # app layout
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 app = dash.Dash(prevent_initial_callbacks=True)
-# cache = Cache(app.server, config={
-#     #'CACHE_TYPE': 'redis',
-#     # Note that filesystem cache doesn't work on systems with ephemeral
-#     # filesystems like Heroku.
-#     'CACHE_TYPE': 'filesystem',
-#     'CACHE_DIR': 'cache-directory',
-#
-#     # should be equal to maximum number of users on the app at a single time
-#     # higher numbers will store more data in the filesystem / redis cache
-#     'CACHE_THRESHOLD': 200
-# })
-# control layout: https://dash-bootstrap-components.opensource.faculty.ai/docs/components/layout/
 
 def serve_layout():
     session_id = str(uuid.uuid4())
 
     return html.Div([
-    html.H1(f'Multilingual text exploration: {session_id}'),
-    dcc.Store(data=session_id, id='session-id'),
+        html.H1(f'Multilingual text exploration: {session_id}'),
+        dcc.Store(data=session_id, id='session-id'),
 
-html.H4('---'*100),
-html.H2('1. Configure data'),
+        html.H4('---' * 100),
+        html.H2('1. Configure data'),
 
-    html.H4('1.1 Select dataset:'),
-    dcc.Dropdown(id="select_dataset",
-                 options=[
-                     {"label": "ParlaMint", "value": 'ParlaMint'},
-                     {"label": "Candas", "value": 'Candas'},
-                 ],
-                 multi=False,
-                 placeholder="Select a dataset",
-                 # value='Candas',
-                 style={'width': "40%"}
-                 ),
-    html.Div(id='select_dataset-output-container'),
+        html.H4('1.1 Select dataset:'),
+        dcc.Dropdown(id="select_dataset",
+                     options=[
+                         {"label": "Generic translations", "value": "Generic translations"},
+                         {"label": "Candas", "value": "Candas"},
+                         {"label": "Candas (metadata)", "value": "Candas (metadata)"},
+                     ],
+                     multi=False,
+                     placeholder="Select a dataset",
+                     # value='Candas',
+                     style={'width': "40%"}
+                     ),
+        html.Div(id='select_dataset-output-container'),
 
-    html.H4('Select example:'),
-    dcc.Dropdown(id="select_rows",
-                 options=[
-                     {"label": "0", "value": 0},
-                     {"label": "1", "value": 1},
-                     {"label": "2", "value": 2}
-                 ],
-                 multi=False,
-                 placeholder="Select a row",
-                 # value=0,
-                 style={'width': "40%"}
-                 ),
+        html.H4('Select keyword:'),
+        dcc.Dropdown(id="select_keyword",
+                     options=[
+                         {"label": "globok", "value": "globok"},
+                         {"label": "kriza", "value": "kriza"},
+                         {"label": "lezbicen", "value": "lezbicen"},
+                         {"label": "razmerje", "value": "razmerje"},
+                         {"label": "teorija", "value": "teorija"}
+                     ],
+                     multi=False,
+                     placeholder="Select a row",
+                     # value=0,
+                     style={'width': "40%"}
+                     ),
 
-    html.H4('Enter number of sentences (optional):'),
-    dcc.Input(id="enter_num_of_sentences",
-              type="number",
-              placeholder="Enter num of sentences or leave empty to select all sentences",
-              #value=-1,
-              style={'width': "20%"},
-              debounce=True),
+        html.H4('Run experiment:'),
+        html.Button('Run experiment',
+                    id='submit-val',
+                    style={'width': "10%"},
+                    n_clicks=0),
+        dcc.Loading(id="loading-1", children=[html.Div(id="loading-output-1")], type="default"),
 
-html.H4('Run experiment:'),
-    html.Button('Run experiment',
-                id='submit-val',
-                style={'width': "10%"},
-                n_clicks=0),
-dcc.Loading(id="loading-1", children=[html.Div(id="loading-output-1")], type="default"),
+        html.H4('---' * 100),
+        html.H4('1.2 Upload your data (txt file):'),
 
-    html.H4('---'*100),
-html.H4('1.2 Upload your data (txt file):'),
+        html.H4('Select language:'),
+        dcc.Dropdown(id="select_language",
+                     options=[
+                         {"label": "Slovene", "value": 'slovene'},
+                         {"label": "English", "value": 'english'},
+                         {"label": "German", "value": 'german'},
+                     ],
+                     multi=False,
+                     placeholder="Select language",
+                     # value='Candas',
+                     style={'width': "40%"}
+                     ),
+        html.Div(id='select_language-output-container'),
 
-html.H4('Select language:'),
-    dcc.Dropdown(id="select_language",
-                 options=[
-                     {"label": "Slovene", "value": 'slovene'},
-                     {"label": "English", "value": 'english'},
-                     {"label": "German", "value": 'german'},
-                 ],
-                 multi=False,
-                 placeholder="Select language",
-                 # value='Candas',
-                 style={'width': "40%"}
-                 ),
-    html.Div(id='select_language-output-container'),
+        dcc.Upload(
+            id='upload-data',
+            children=html.Div([
+                'Drag and Drop or ',
+                html.A('Select File')
+            ]),
+            style={
+                'width': '40%',
+                'height': '60px',
+                'lineHeight': '60px',
+                'borderWidth': '1px',
+                'borderStyle': 'dashed',
+                'borderRadius': '5px',
+                'textAlign': 'center',
+                'margin': '10px'
+            },
+            # Allow multiple files to be uploaded
+            multiple=True
+        ),
+        html.Div(id='output-data-upload'),
 
-    dcc.Upload(
-        id='upload-data',
-        children=html.Div([
-            'Drag and Drop or ',
-            html.A('Select File')
-        ]),
-        style={
-            'width': '40%',
-            'height': '60px',
-            'lineHeight': '60px',
-            'borderWidth': '1px',
-            'borderStyle': 'dashed',
-            'borderRadius': '5px',
-            'textAlign': 'center',
-            'margin': '10px'
-        },
-        # Allow multiple files to be uploaded
-        multiple=True
-    ),
-    html.Div(id='output-data-upload'),
+        html.H4('---' * 100),
+        html.H4('1.3. Reload experiment:'),
+        dcc.Dropdown(id="dropdown",
+                     options=[
+                         # {"label": "0", "value": 0},
+                         # {"label": "1", "value": 1},
+                         # {"label": "2", "value": 2}
+                     ],
+                     multi=False,
+                     placeholder="Select experiment",
+                     # value=0,
+                     style={'width': "40%"}
+                     ),
+        html.Button('Reload experiment',
+                    id='reload-exp',
+                    style={'width': "10%"},
+                    n_clicks=0),
 
-html.H4('---'*100),
-    html.H4('1.3. Reload experiment:'),
-    dcc.Dropdown(id="dropdown",
-                 options=[
-                     # {"label": "0", "value": 0},
-                     # {"label": "1", "value": 1},
-                     # {"label": "2", "value": 2}
-                 ],
-                 multi=False,
-                 placeholder="Select experiment",
-                 # value=0,
-                 style={'width': "40%"}
-                 ),
-    html.Button('Reload experiment',
-                id='reload-exp',
-                style={'width': "10%"},
-                n_clicks=0),
+        html.H4('---' * 100),
 
-html.H4('---'*100),
+        html.H2('2. Explore results'),
 
-html.H2('2. Explore results'),
+        html.H4('Enter keyword (optional):'),
+        dcc.Input(id="keyword",
+                  type="text",
+                  placeholder="Enter keyword",
+                  # value='None',
+                  style={'width': "20%"},
+                  debounce=True),
 
-    html.H4('Enter keyword (optional):'),
-    dcc.Input(id="keyword",
-              type="text",
-              placeholder="Enter keyword",
-              # value='None',
-              style={'width': "20%"},
-              debounce=True),
+        html.H4('Limit number of sentences (optional):'),
+        dcc.Input(id="enter_num_of_sentences",
+                  type="number",
+                  placeholder="Enter num of sentences or leave empty to select all sentences",
+                  # value=-1,
+                  style={'width': "20%"},
+                  debounce=True),
 
-html.H4('Scale nodes size:'),
-    dcc.Slider(id='slider_nodes',
-               min=0,
-               max=1,
-               step=0.001,
-               value=0.5,
-               marks={
-                   0: '0',
-                   0.25: '0.25',
-                   0.50: '0.50',
-                   0.75: '0.75',
-                   1: '1'
-               },
-               ),
-    html.Div(id='slider_nodes-output-container'),
+        html.H4('Scale nodes size:'),
+        dcc.Slider(id='slider_nodes',
+                   min=0,
+                   max=1,
+                   step=0.001,
+                   value=0.5,
+                   marks={
+                       0: '0',
+                       0.25: '0.25',
+                       0.50: '0.50',
+                       0.75: '0.75',
+                       1: '1'
+                   },
+                   ),
+        html.Div(id='slider_nodes-output-container'),
 
-html.H4('Select edges threshold:'),
-    dcc.Slider(id='slider_edges',
-                               min=0,
-                               max=1,
-                               step=0.001,
-                               value=0.8,
-                               marks={
-                                   0: '0',
-                                   0.25: '0.25',
-                                   0.50: '0.50',
-                                   0.75: '0.75',
-                                   1: '1'
-                               },
-                               ),
-    html.Div(id='slider_edges-output-container'),
+        html.H4('Select edges threshold:'),
+        dcc.Slider(id='slider_edges',
+                   min=0,
+                   max=1,
+                   step=0.001,
+                   value=0.8,
+                   marks={
+                       0: '0',
+                       0.25: '0.25',
+                       0.50: '0.50',
+                       0.75: '0.75',
+                       1: '1'
+                   },
+                   ),
+        html.Div(id='slider_edges-output-container'),
 
-html.Div(dcc.Graph(id='main-fig')),
+        html.Div(dcc.Graph(id='main-fig')),
 
-])
+    ])
 
 app.layout = serve_layout
-
 
 # stored values and metavariables
 stored_values = {}
@@ -250,6 +234,7 @@ stored_values = {}
     Input('submit-val', 'n_clicks'),
     Input('reload-exp', 'n_clicks'),
     Input('keyword', 'value'),
+    Input('enter_num_of_sentences', 'value'),
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
     Input('upload-data', 'contents'),
@@ -258,8 +243,8 @@ stored_values = {}
     State('dropdown', 'value'),
     State('select_dataset', 'value'),
     State('select_language', 'value'),
-    State('select_rows', 'value'),
-    State('enter_num_of_sentences', 'value'),
+    State('select_keyword', 'value'),
+
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
     State('session-id', 'data')
@@ -269,6 +254,7 @@ def update_graph(
         submit,
         reload,
         keyword,
+        num_of_sentences,
         slider_nodes,
         slider_edges,
         list_of_contents,
@@ -278,12 +264,9 @@ def update_graph(
         dropdown_value,
         dataset,
         langid,
-        row,
-        num_of_sentences,
-
+        candas_keyword,
         list_of_names,
         list_of_dates,
-
         session_id
 ):
     # for debbuging
@@ -319,7 +302,7 @@ def update_graph(
 
     # create new example id
     if not example_id:
-        example_id = f'dataset:{dataset}_example:{row}_numOfSents:{num_of_sentences}'
+        example_id = f'dataset:{dataset}_example:{candas_keyword}_numOfSents:{num_of_sentences}'
 
     stored_values[session_id]['current_example'] = example_id
 
@@ -327,15 +310,17 @@ def update_graph(
 
     # check if example with the same id has already run, else run it from scratch
     if not example_id in stored_values[session_id].keys():
-        if 'Candas' in example_id:
-            sentences = get_candas(nlp, row)
-        elif 'ParlaMint' in example_id:
-            sentences = get_parlamint(row)
+        if 'Generic translations' in example_id:
+            sentences = get_generic_translations()
+        elif 'Candas (metadata)' in example_id:
+            sentences, metadata = get_candas_doc_metadata(candas_keyword)
+        elif 'Candas' in example_id:
+            sentences = get_candas_doc(candas_keyword)
         elif 'uploaded_example' in example_id:
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
             decoded = decoded.decode('utf-8').replace('\n', ' ')
-            sentences = get_uploaded_example(nlp, decoded, langid)
+            sentences = get_uploaded_example(decoded, langid)
         else:
             return go.Figure()
 
@@ -354,6 +339,10 @@ def update_graph(
             wraped_sentence = ' '.join(wraped_sentence)
             wraped_sentences.append(wraped_sentence)
         sentences = wraped_sentences
+
+        # add metadata to candas dataset
+        if 'Candas (metadata)' in example_id:
+            sentences = [f'{meta} <br> {sent}' for sent, meta in zip(sentences, metadata)]
 
         # similarity matrix
         sim_mat = cosine_similarity(embeddings)
@@ -453,6 +442,7 @@ def update_graph(
         node_x.append(x)
         node_y.append(y)
 
+    # A) show without classes
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers',
@@ -486,8 +476,78 @@ def update_graph(
     node_trace.marker.color = node_adjacencies
     node_trace.text = node_text
 
-    # create a figure
-    fig = go.Figure(data=[edge_trace, node_trace],
+    fig_data = [edge_trace, node_trace]
+
+    # B) show with classes (now works only for translations)
+    if 'Generic translations' in example_id:
+        c = ['green', 'blue', 'yellow', 'orange']
+        groups = ['green']*14 + ['blue']*14 + ['yellow']*14 + ['orange']*14
+        fig_df = pd.DataFrame({
+            'x': node_x,
+            'y': node_y,
+            'groups': groups,
+            'centrality': centrality_scores,
+            'sentences': sentences
+        })
+
+        fig_data = [edge_trace]
+        for col in c:
+            d = fig_df[fig_df['groups'] == col]
+            scatter_single = go.Scatter(
+                mode='markers',
+                hovertemplate=[sent+'<extra></extra>'for sent in d['sentences'].tolist()],
+                hovertext='text',
+                x=d['x'],
+                y=d['y'],
+                opacity=0.5,
+                marker=dict(
+                    color=col,
+                    size=[s * 10 for s in d['centrality']],
+                    line=dict(
+                        # color='MediumPurple',
+                        width=1
+                    )
+                ),
+                showlegend=False
+            )
+            fig_data.append(scatter_single)
+
+    # C) split candas based on metadata; TODO: save metadata somewhere (graph cannot be updated)
+    if 'metadata' in example_id:
+        bias = [exp.split('<br>')[-1].split(':')[1].strip()for exp in metadata]
+        c = ['green', 'blue']
+        groups = ['green' if b=='left' else 'blue' for b in bias]
+        fig_df = pd.DataFrame({
+            'x': node_x,
+            'y': node_y,
+            'groups': groups,
+            'centrality': centrality_scores,
+            'sentences': sentences
+        })
+
+        fig_data = [edge_trace]
+        for col in c:
+            d = fig_df[fig_df['groups'] == col]
+            scatter_single = go.Scatter(
+                mode='markers',
+                hovertemplate=[sent+'<extra></extra>'for sent in d['sentences'].tolist()],
+                hovertext='text',
+                x=d['x'],
+                y=d['y'],
+                opacity=0.5,
+                marker=dict(
+                    color=col,
+                    size=[s * 10 for s in d['centrality']],
+                    line=dict(
+                        # color='MediumPurple',
+                        width=1
+                    )
+                ),
+                showlegend=False
+            )
+            fig_data.append(scatter_single)
+
+    fig = go.Figure(data=fig_data,
                     layout=go.Layout(
                         title=f'<b>Experimet ID: "{example_id.replace("_", " ")}", Number of sentences: {len(sentences)}</b>',
                         height=800,
@@ -514,5 +574,6 @@ def update_graph(
 
     return fig, experiments, '', 'Experiment was loaded!'
 
+
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True)  # Turn off reloader if inside Jupyter
+    app.run_server(host='0.0.0.0', debug=True, dev_tools_hot_reload=False)  # Turn off reloader if inside Jupyter
