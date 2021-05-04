@@ -86,8 +86,8 @@ def serve_layout():
 
     # DEBUG active sessions
     print('Number of active sessions:', len(active_sessions), 'Number of stored values:', len(stored_values))
-    print(active_sessions.keys())
-    print(stored_values.keys())
+    print('Active sessions:', active_sessions.keys())
+    print('Stored values:', stored_values.keys())
     print('Autorefresh on!')
 
     return dbc.Container(
@@ -502,7 +502,8 @@ def update_graph(
         line=dict(width=1,
                   color='#888'),
         hoverinfo='none',
-        mode='lines')
+        mode='lines',
+        name='correlated')
 
     # create nodes
     node_x = []
@@ -550,6 +551,13 @@ def update_graph(
 
     # B) show with classes (now works only for translations)
     if 'Generic translations' in example_id:
+        color_keys = {
+            'green': 'slovene',
+            'orange': 'german',
+            'blue': 'english',
+            'yellow': 'croatian'
+
+        }
         c = ['green', 'blue', 'yellow', 'orange']
         groups = ['green'] * 14 + ['blue'] * 14 + ['yellow'] * 14 + ['orange'] * 14
         fig_df = pd.DataFrame({
@@ -578,7 +586,8 @@ def update_graph(
                         width=1
                     )
                 ),
-                showlegend=False
+                showlegend=True,
+                name=color_keys[col]
             )
             fig_data.append(scatter_single)
 
@@ -613,18 +622,20 @@ def update_graph(
                         width=1
                     )
                 ),
-                showlegend=False
+                showlegend=True,
+                name='left' if col == 'green' else 'right'
             )
             fig_data.append(scatter_single)
 
     fig = go.Figure(data=fig_data,
                     layout=go.Layout(
                         title=f'<b>Experimet ID: "{example_id.replace("_", " ")}", Number of sentences: {len(sentences)}</b>',
-                        height=800,
-                        showlegend=False,
+                        #height=800,
+                        showlegend=True,
                         hovermode='closest',
                         margin=dict(b=20, l=5, r=5, t=40),
-                        uirevision=example_id
+                        uirevision=example_id,
+
                         # this line does not reset zoom: https://community.plotly.com/t/preserving-ui-state-like-zoom-in-dcc-graph-with-uirevision-with-dash/15793
                         # annotations=[ dict(
                         #     #text="Python code: <a href='https://plotly.com/ipython-notebooks/network-graphs/'>
@@ -635,6 +646,26 @@ def update_graph(
                         # xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         # yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     ))
+    # fig.update_layout(legend_title_text='Legend')
+
+    fig.update_layout(
+        legend=dict(
+            # yanchor="top",
+            y=0.99,
+            # xanchor="left",
+            x=0.01,
+            traceorder="reversed",
+            title_font_family="Times New Roman",
+            font=dict(
+                #family="Courier",
+                size=12,
+                #color="black"
+            ),
+            #bgcolor="LightSteelBlue",
+            bordercolor="Black",
+            borderwidth=2
+        )
+    )
 
     # save experiment setup
     current_experiments = [e['label'] for e in experiments]
