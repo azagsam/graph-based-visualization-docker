@@ -24,6 +24,11 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import os
 import uuid
+import datetime
+
+# stored values and metavariables
+stored_values = {}
+active_sessions = {}
 
 SBERT_PATH = f'{os.path.abspath(os.getcwd())}/data/encoders/xlm-r-100langs-bert-base-nli-stsb-mean-tokens'
 
@@ -59,170 +64,230 @@ encoder = encoders['SentenceBERT'](model_dir=SBERT_PATH)
 
 # app layout
 external_stylesheets = [dbc.themes.BOOTSTRAP]
-app = dash.Dash(prevent_initial_callbacks=True)
+app = dash.Dash(prevent_initial_callbacks=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
 
 def serve_layout():
+    # create session id
     session_id = str(uuid.uuid4())
 
-    return html.Div([
-        html.H1(f'Multilingual text exploration: {session_id}'),
-        dcc.Store(data=session_id, id='session-id'),
+    # check if there are any sessions older than two days and remove them
+    active_sessions[session_id] = datetime.datetime.now()
+    old_keys = []
+    for key, value_datetime in active_sessions.items():
+        delta = datetime.datetime.now() - value_datetime
+        if delta.days > 2:
+            stored_values.pop(key, None)
+            print(f'Session {key} removed!', '\n')
+            old_keys.append(key)
+    # remove old keys from active sessions
+    for key in old_keys:
+        active_sessions.pop(key, None)
 
-        html.H4('---' * 100),
-        html.H2('1. Configure data'),
+    # DEBUG active sessions
+    print('Number of active sessions:', len(active_sessions), 'Number of stored values:', len(stored_values))
+    print(active_sessions.keys())
+    print(stored_values.keys())
+    print('Autorefresh on!')
 
-        html.H4('1.1 Select dataset:'),
-        dcc.Dropdown(id="select_dataset",
-                     options=[
-                         {"label": "Generic translations", "value": "Generic translations"},
-                         {"label": "Candas", "value": "Candas"},
-                         {"label": "Candas (metadata)", "value": "Candas (metadata)"},
-                     ],
-                     multi=False,
-                     placeholder="Select a dataset",
-                     # value='Candas',
-                     style={'width': "40%"}
-                     ),
-        html.Div(id='select_dataset-output-container'),
+    return dbc.Container(
+        fluid=True,
+        children=[
+            html.H1(f'Multilingual Text Exploration: {session_id}'),
+            dcc.Store(data=session_id, id='session-id'),
+            html.Hr(),
 
-        html.H4('Select keyword:'),
-        dcc.Dropdown(id="select_keyword",
-                     options=[
-                         {"label": "globok", "value": "globok"},
-                         {"label": "kriza", "value": "kriza"},
-                         {"label": "lezbicen", "value": "lezbicen"},
-                         {"label": "razmerje", "value": "razmerje"},
-                         {"label": "teorija", "value": "teorija"}
-                     ],
-                     multi=False,
-                     placeholder="Select a row",
-                     # value=0,
-                     style={'width': "40%"}
-                     ),
+            dbc.Row([
 
-        html.H4('Run experiment:'),
-        html.Button('Run experiment',
-                    id='submit-val',
-                    style={'width': "10%"},
-                    n_clicks=0),
-        dcc.Loading(id="loading-1", children=[html.Div(id="loading-output-1")], type="default"),
+                dbc.Nav(
+                    [
+                        dbc.NavLink("Active", active=True, href="#"),
+                        dbc.NavLink("Instructions", href="#"),
 
-        html.H4('---' * 100),
-        html.H4('1.2 Upload your data (txt file):'),
+                    ]
+                )
 
-        html.H4('Select language:'),
-        dcc.Dropdown(id="select_language",
-                     options=[
-                         {"label": "Slovene", "value": 'slovene'},
-                         {"label": "English", "value": 'english'},
-                         {"label": "German", "value": 'german'},
-                     ],
-                     multi=False,
-                     placeholder="Select language",
-                     # value='Candas',
-                     style={'width': "40%"}
-                     ),
-        html.Div(id='select_language-output-container'),
-
-        dcc.Upload(
-            id='upload-data',
-            children=html.Div([
-                'Drag and Drop or ',
-                html.A('Select File')
             ]),
-            style={
-                'width': '40%',
-                'height': '60px',
-                'lineHeight': '60px',
-                'borderWidth': '1px',
-                'borderStyle': 'dashed',
-                'borderRadius': '5px',
-                'textAlign': 'center',
-                'margin': '10px'
-            },
-            # Allow multiple files to be uploaded
-            multiple=True
-        ),
-        html.Div(id='output-data-upload'),
 
-        html.H4('---' * 100),
-        html.H4('1.3. Reload experiment:'),
-        dcc.Dropdown(id="dropdown",
-                     options=[
-                         # {"label": "0", "value": 0},
-                         # {"label": "1", "value": 1},
-                         # {"label": "2", "value": 2}
-                     ],
-                     multi=False,
-                     placeholder="Select experiment",
-                     # value=0,
-                     style={'width': "40%"}
-                     ),
-        html.Button('Reload experiment',
-                    id='reload-exp',
-                    style={'width': "10%"},
-                    n_clicks=0),
+            dbc.Row([
 
-        html.H4('---' * 100),
+                dbc.Col(
+                    dbc.Card([
 
-        html.H2('2. Explore results'),
+                        # html.H2(html.Strong('Configure data')),
 
-        html.H4('Enter keyword (optional):'),
-        dcc.Input(id="keyword",
-                  type="text",
-                  placeholder="Enter keyword",
-                  # value='None',
-                  style={'width': "20%"},
-                  debounce=True),
+                        html.H2(html.Strong('Demo datasets')),
 
-        html.H4('Limit number of sentences (optional):'),
-        dcc.Input(id="enter_num_of_sentences",
-                  type="number",
-                  placeholder="Enter num of sentences or leave empty to select all sentences",
-                  # value=-1,
-                  style={'width': "20%"},
-                  debounce=True),
+                        html.H6('Select dataset:'),
+                        dcc.Dropdown(id="select_dataset",
+                                     options=[
+                                         {"label": "Generic translations", "value": "Generic translations"},
+                                         # {"label": "Candas", "value": "Candas"},
+                                         {"label": "Candas (teorija)", "value": "Candas:teorija"},
+                                         {"label": "Candas (globok)", "value": "Candas:globok"},
+                                         {"label": "Candas (teorija with metadata)",
+                                          "value": "Candas:teorija:metadata"},
+                                         {"label": "Candas (globok with metadata)", "value": "Candas:globok:metadata"},
+                                     ],
+                                     multi=False,
+                                     placeholder="Select a dataset",
+                                     # value='Candas',
+                                     # style={'width': "40%"}
+                                     ),
+                        html.Div(id='select_dataset-output-container'),
 
-        html.H4('Scale nodes size:'),
-        dcc.Slider(id='slider_nodes',
-                   min=0,
-                   max=1,
-                   step=0.001,
-                   value=0.5,
-                   marks={
-                       0: '0',
-                       0.25: '0.25',
-                       0.50: '0.50',
-                       0.75: '0.75',
-                       1: '1'
-                   },
-                   ),
-        html.Div(id='slider_nodes-output-container'),
+                        html.H6('Run experiment:'),
+                        dbc.Button('Run experiment',
+                                   id='submit-val',
+                                   # style={'width': "10%"},
+                                   n_clicks=0,
+                                   color='primary'),
+                        dcc.Loading(id="loading-1",
+                                    children=[html.Div(id="loading-output-1")],
+                                    type="circle",
+                                    ),
 
-        html.H4('Select edges threshold:'),
-        dcc.Slider(id='slider_edges',
-                   min=0,
-                   max=1,
-                   step=0.001,
-                   value=0.8,
-                   marks={
-                       0: '0',
-                       0.25: '0.25',
-                       0.50: '0.50',
-                       0.75: '0.75',
-                       1: '1'
-                   },
-                   ),
-        html.Div(id='slider_edges-output-container'),
 
-        html.Div(dcc.Graph(id='main-fig')),
+                    ], body=True, style={'height': '220px'})),
 
-    ])
+                dbc.Col(
+                    dbc.Card([
+
+                        html.H2(html.Strong('Upload your data')),
+
+                        html.H6('Select language:'),
+                        dcc.Dropdown(id="select_language",
+                                     options=[
+                                         {"label": "Slovene", "value": 'slovene'},
+                                         {"label": "English", "value": 'english'},
+                                         {"label": "German", "value": 'german'},
+                                     ],
+                                     multi=False,
+                                     placeholder="Select language",
+                                     value='slovene',
+                                     # style={'width': "40%"}
+                                     ),
+                        html.Div(id='select_language-output-container'),
+
+                        dcc.Upload(
+                            id='upload-data',
+                            children=html.Div([
+                                'Drag and Drop or ',
+                                html.A('Select File')
+                            ]),
+                            style={
+                                # 'width': '40%',
+                                'height': '60px',
+                                'lineHeight': '60px',
+                                'borderWidth': '1px',
+                                'borderStyle': 'dashed',
+                                'borderRadius': '5px',
+                                'textAlign': 'center',
+                                'margin': '10px'
+                            },
+                            # Allow multiple files to be uploaded
+                            multiple=True
+                        ),
+                        html.Div(id='output-data-upload'),
+
+                    ], body=True, style={'height': '220px'})),
+
+                dbc.Col(
+                    dbc.Card([
+
+                        html.H2(html.Strong('Reload experiment')),
+                        html.H6('Select experiment:'),
+                        dcc.Dropdown(id="dropdown",
+                                     options=[
+                                         # {"label": "0", "value": 0},
+                                         # {"label": "1", "value": 1},
+                                         # {"label": "2", "value": 2}
+                                     ],
+                                     multi=False,
+                                     placeholder="Select experiment",
+                                     # value=0,
+                                     # style={'width': "40%"}
+                                     ),
+                        html.H6('Reload experiment:'),
+                        dbc.Button('Reload experiment',
+                                   id='reload-exp',
+                                   # style={'width': "10%"},
+                                   n_clicks=0,
+                                   color='primary'),
+
+                    ], body=True, style={'height': '220px'})),
+
+            ], style={'margin': '50px'}),
+
+            dbc.Row([
+
+                dbc.Col(dbc.Card([
+
+                    html.H2(html.Strong('Explore results')),
+
+                    html.H6('Enter keyword (optional):'),
+                    dcc.Input(id="keyword",
+                              type="text",
+                              placeholder="Enter keyword",
+                              # value='None',
+                              style={'width': "20%"},
+                              debounce=True),
+
+                    html.H6('Limit number of sentences (optional):'),
+                    dcc.Input(id="enter_num_of_sentences",
+                              type="number",
+                              placeholder="Enter num of sentences or leave empty to select all sentences",
+                              # value=-1,
+                              style={'width': "20%"},
+                              debounce=True),
+
+                    html.H6('Scale nodes size:'),
+                    dcc.Slider(id='slider_nodes',
+                               min=0,
+                               max=1,
+                               step=0.001,
+                               value=0.5,
+                               marks={
+                                   0: '0',
+                                   0.25: '0.25',
+                                   0.50: '0.50',
+                                   0.75: '0.75',
+                                   1: '1'
+                               },
+                               ),
+                    html.Div(id='slider_nodes-output-container'),
+
+                    html.H6('Select edges threshold:'),
+                    dcc.Slider(id='slider_edges',
+
+                               min=0,
+                               max=1,
+                               step=0.001,
+                               value=0.8,
+                               marks={
+                                   0: '0',
+                                   0.25: '0.25',
+                                   0.50: '0.50',
+                                   0.75: '0.75',
+                                   1: '1'
+                               },
+                               ),
+                    html.Div(id='slider_edges-output-container'),
+
+                ], body=True)),
+
+            ], style={'margin': '50px'}),
+
+            dbc.Row([
+
+                dbc.Col([html.Div(dcc.Graph(id='main-fig'))])
+
+            ])
+
+        ])
+
 
 app.layout = serve_layout
-
-# stored values and metavariables
-stored_values = {}
 
 
 @app.callback(
@@ -243,7 +308,6 @@ stored_values = {}
     State('dropdown', 'value'),
     State('select_dataset', 'value'),
     State('select_language', 'value'),
-    State('select_keyword', 'value'),
 
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
@@ -264,7 +328,6 @@ def update_graph(
         dropdown_value,
         dataset,
         langid,
-        candas_keyword,
         list_of_names,
         list_of_dates,
         session_id
@@ -302,7 +365,12 @@ def update_graph(
 
     # create new example id
     if not example_id:
-        example_id = f'dataset:{dataset}_example:{candas_keyword}_numOfSents:{num_of_sentences}'
+        if ':' in dataset:
+            dataset_info = dataset.split(':')
+            dataset_name, candas_keyword = dataset_info[0], dataset_info[1]
+            example_id = f'dataset:{dataset}_example:{candas_keyword}_numOfSents:{num_of_sentences}'
+        else:
+            example_id = f'dataset:{dataset}_numOfSents:{num_of_sentences}'
 
     stored_values[session_id]['current_example'] = example_id
 
@@ -312,9 +380,11 @@ def update_graph(
     if not example_id in stored_values[session_id].keys():
         if 'Generic translations' in example_id:
             sentences = get_generic_translations()
-        elif 'Candas (metadata)' in example_id:
+        elif 'metadata' in example_id:
+            dataset_name, candas_keyword = dataset.split(':')[:2]
             sentences, metadata = get_candas_doc_metadata(candas_keyword)
         elif 'Candas' in example_id:
+            dataset_name, candas_keyword = dataset.split(':')[:2]
             sentences = get_candas_doc(candas_keyword)
         elif 'uploaded_example' in example_id:
             content_type, content_string = list_of_contents[0].split(',')
@@ -341,7 +411,7 @@ def update_graph(
         sentences = wraped_sentences
 
         # add metadata to candas dataset
-        if 'Candas (metadata)' in example_id:
+        if 'metadata' in example_id:
             sentences = [f'{meta} <br> {sent}' for sent, meta in zip(sentences, metadata)]
 
         # similarity matrix
@@ -481,7 +551,7 @@ def update_graph(
     # B) show with classes (now works only for translations)
     if 'Generic translations' in example_id:
         c = ['green', 'blue', 'yellow', 'orange']
-        groups = ['green']*14 + ['blue']*14 + ['yellow']*14 + ['orange']*14
+        groups = ['green'] * 14 + ['blue'] * 14 + ['yellow'] * 14 + ['orange'] * 14
         fig_df = pd.DataFrame({
             'x': node_x,
             'y': node_y,
@@ -495,7 +565,7 @@ def update_graph(
             d = fig_df[fig_df['groups'] == col]
             scatter_single = go.Scatter(
                 mode='markers',
-                hovertemplate=[sent+'<extra></extra>'for sent in d['sentences'].tolist()],
+                hovertemplate=[sent + '<extra></extra>' for sent in d['sentences'].tolist()],
                 hovertext='text',
                 x=d['x'],
                 y=d['y'],
@@ -512,11 +582,11 @@ def update_graph(
             )
             fig_data.append(scatter_single)
 
-    # C) split candas based on metadata; TODO: save metadata somewhere (graph cannot be updated)
+    # C) split candas based on metadata
     if 'metadata' in example_id:
-        bias = [exp.split('<br>')[-1].split(':')[1].strip()for exp in metadata]
+        bias = [exp.split('<br>')[3].split(':')[1].strip() for exp in sentences]
         c = ['green', 'blue']
-        groups = ['green' if b=='left' else 'blue' for b in bias]
+        groups = ['green' if b == 'left' else 'blue' for b in bias]
         fig_df = pd.DataFrame({
             'x': node_x,
             'y': node_y,
@@ -530,7 +600,7 @@ def update_graph(
             d = fig_df[fig_df['groups'] == col]
             scatter_single = go.Scatter(
                 mode='markers',
-                hovertemplate=[sent+'<extra></extra>'for sent in d['sentences'].tolist()],
+                hovertemplate=[sent + '<extra></extra>' for sent in d['sentences'].tolist()],
                 hovertext='text',
                 x=d['x'],
                 y=d['y'],
