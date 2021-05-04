@@ -101,8 +101,8 @@ def serve_layout():
 
                 dbc.Nav(
                     [
-                        dbc.NavLink("Active", active=True, href="#"),
-                        dbc.NavLink("Instructions", href="#"),
+                        dbc.NavLink("Active", active=True, href="/"),
+                        dbc.NavLink("Instructions", href="instructions"),
 
                     ]
                 )
@@ -122,12 +122,14 @@ def serve_layout():
                         dcc.Dropdown(id="select_dataset",
                                      options=[
                                          {"label": "Generic translations", "value": "Generic translations"},
-                                         # {"label": "Candas", "value": "Candas"},
                                          {"label": "Candas (teorija)", "value": "Candas:teorija"},
                                          {"label": "Candas (globok)", "value": "Candas:globok"},
+
                                          {"label": "Candas (teorija with metadata)",
                                           "value": "Candas:teorija:metadata"},
-                                         {"label": "Candas (globok with metadata)", "value": "Candas:globok:metadata"},
+                                         {"label": "Candas (globok with metadata, cluster bias)", "value": "Candas(cluster-bias):globok:metadata"},
+                                         {"label": "Candas (globok with metadata, cluster source)",
+                                          "value": "Candas(cluster-source):globok:metadata"},
                                      ],
                                      multi=False,
                                      placeholder="Select a dataset",
@@ -549,6 +551,10 @@ def update_graph(
 
     fig_data = [edge_trace, node_trace]
 
+    # use names from this list: https://www.w3.org/wiki/CSS/Properties/color/keywords
+    colors = ['green', 'blue', 'yellow', 'orange', 'purple', 'red', 'olive', 'lime',
+              'navy', 'teal', 'aqua']
+
     # B) show with classes (now works only for translations)
     if 'Generic translations' in example_id:
         color_keys = {
@@ -593,19 +599,33 @@ def update_graph(
 
     # C) split candas based on metadata
     if 'metadata' in example_id:
-        bias = [exp.split('<br>')[3].split(':')[1].strip() for exp in sentences]
-        c = ['green', 'blue']
-        groups = ['green' if b == 'left' else 'blue' for b in bias]
+        # check what to cluster
+        if 'bias' in example_id:
+            idx = 3
+        elif 'source' in example_id:
+            idx = 0
+        else:
+            idx = 1
+
+        # create data
+        cluster_name = [exp.split('<br>')[idx].split(':')[1].strip() for exp in sentences]
+        cluster_unique = set(cluster_name)
+        unique_colors = colors[:len(cluster_unique)]
+        color_map = {b:c for b, c in zip(cluster_unique, unique_colors)}
+        cluster_map = {c: b for b, c in zip(cluster_unique, unique_colors)}
+        groups = [color_map[b] for b in cluster_name]
+
         fig_df = pd.DataFrame({
             'x': node_x,
             'y': node_y,
             'groups': groups,
             'centrality': centrality_scores,
-            'sentences': sentences
+            'sentences': sentences,
+            'cluster_name': cluster_name
         })
 
         fig_data = [edge_trace]
-        for col in c:
+        for col in unique_colors:
             d = fig_df[fig_df['groups'] == col]
             scatter_single = go.Scatter(
                 mode='markers',
@@ -623,18 +643,20 @@ def update_graph(
                     )
                 ),
                 showlegend=True,
-                name='left' if col == 'green' else 'right'
+                name=cluster_map[col]
             )
             fig_data.append(scatter_single)
 
     fig = go.Figure(data=fig_data,
                     layout=go.Layout(
                         title=f'<b>Experimet ID: "{example_id.replace("_", " ")}", Number of sentences: {len(sentences)}</b>',
-                        #height=800,
+                        height=800,
                         showlegend=True,
                         hovermode='closest',
                         margin=dict(b=20, l=5, r=5, t=40),
                         uirevision=example_id,
+                        xaxis={'visible': False},
+                        yaxis={'visible': False}
 
                         # this line does not reset zoom: https://community.plotly.com/t/preserving-ui-state-like-zoom-in-dcc-graph-with-uirevision-with-dash/15793
                         # annotations=[ dict(
@@ -646,7 +668,6 @@ def update_graph(
                         # xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         # yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     ))
-    # fig.update_layout(legend_title_text='Legend')
 
     fig.update_layout(
         legend=dict(
