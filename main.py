@@ -313,9 +313,9 @@ app.layout = serve_layout
 @app.callback(
     Output('main-fig', 'figure'),  # update figure
     Output('reload-graph-dropdown', 'options'),  # update options of graph reload
-    Output('reload-graph-dropdown', 'value'),  # to clear dropdown
+    Output('reload-graph-dropdown', 'value'),  # to clear reload dropdown
     Output('loading-output-1', 'children'),  # message to display instead of the loading button
-    Output('select_dataset-dropdown', 'value'),  # returns '' to clear dropdown
+    Output('select_dataset-dropdown', 'value'),  # to clear demo datasets dropdown
 
     Input('generate-graph-button', 'n_clicks'),
     Input('reload-graph-button', 'n_clicks'),
@@ -329,7 +329,6 @@ app.layout = serve_layout
     State('reload-graph-dropdown', 'value'),
     State('select_dataset-dropdown', 'value'),
     State('select_language', 'value'),
-
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
     State('session-id', 'data')
@@ -346,7 +345,7 @@ def update_graph(
 
         # states
         experiments,
-        dropdown_value,
+        reload_graph_value,
         dataset,
         langid,
         list_of_names,
@@ -383,9 +382,9 @@ def update_graph(
             example_id = stored_values[session_id]['current_example']
 
     # check if experiment has run already
-    if dropdown_value:
+    if reload_graph_value:
         print(ctx_msg['states']['reload-graph-dropdown.value'])
-        example_id = dropdown_value
+        example_id = reload_graph_value
 
     # create new example id - refers to dropdown
     if not example_id:
@@ -523,11 +522,10 @@ def update_graph(
 
     edge_x = []
     edge_y = []
-    draw_line = slider_edges
     for edge in G.edges():
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
-        if weights[edge[0], edge[1]] > draw_line:
+        if weights[edge[0], edge[1]] > slider_edges:
             edge_x.append(x0)
             edge_x.append(x1)
             edge_x.append(None)
