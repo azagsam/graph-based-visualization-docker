@@ -64,7 +64,9 @@ encoder = encoders['SentenceBERT'](model_dir=SBERT_PATH)
 
 # app layout
 external_stylesheets = [dbc.themes.BOOTSTRAP]
-app = dash.Dash(prevent_initial_callbacks=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__,
+                prevent_initial_callbacks=True,
+                external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 
 def serve_layout():
@@ -120,19 +122,33 @@ def serve_layout():
 
                         html.H6('Select dataset:'),
                         dcc.Dropdown(id="select_dataset-dropdown",
+                                     # Candas datasets values are structured as "name:keyword" pairs
                                      options=[
                                          {"label": "Generic translations", "value": "Generic translations"},
-                                         {"label": "Candas (teorija)", "value": "Candas:teorija"},
-                                         {"label": "Candas (globok)", "value": "Candas:globok"},
+
+                                         {"label": "Candas (teorija)",
+                                          "value": "Candas (teorija):teorija"},
+
+                                         {"label": "Candas (globok)",
+                                          "value": "Candas (globok):globok"},
 
                                          {"label": "Candas (teorija with metadata)",
-                                          "value": "Candas:teorija:metadata"},
+                                          "value": "Candas (teorija with metadata):teorija"},
+
+                                         {"label": "Candas (globok with metadata)",
+                                          "value": "Candas (globok with metadata):teorija"},
+
                                          {"label": "Candas (globok with metadata, cluster bias)",
-                                          "value": "Candas(cluster-bias):globok:metadata"},
+                                          "value": "Candas (globok with metadata, cluster bias):globok"},
+
                                          {"label": "Candas (globok with metadata, cluster source)",
-                                          "value": "Candas(cluster-source):globok:metadata"},
+                                          "value": "Candas (globok with metadata, cluster source):globok"},
+
+                                         {"label": "Candas (kriza with metadata, cluster bias)",
+                                          "value": "Candas (kriza with metadata, cluster bias):kriza"},
+
                                          {"label": "Candas (kriza with metadata, cluster source)",
-                                          "value": "Candas(cluster-source):kriza:metadata"},
+                                          "value": "Candas (kriza with metadata, cluster source):kriza"},
 
                                      ],
                                      multi=False,
@@ -337,6 +353,14 @@ def update_graph(
         list_of_dates,
         session_id
 ):
+
+    # save session in stored_values if it does not exists yet
+    if session_id not in stored_values.keys():
+        stored_values[session_id] = {}
+
+    # start building example ID
+    example_id = None
+
     # for debbuging
     ctx = dash.callback_context
     ctx_msg = {
@@ -346,11 +370,6 @@ def update_graph(
     }
     # print(ctx_msg)
 
-    # save session in stored_values if it not exists yet
-    if session_id not in stored_values.keys():
-        stored_values[session_id] = {}
-
-    example_id = ''
     # check for special triggers
     if ctx_msg['triggered']:
         prop_ids = ['keyword-input.value', 'slider_nodes.value', 'slider_edges.value']
@@ -363,24 +382,29 @@ def update_graph(
             assert 'current_example' in stored_values[session_id].keys()
             example_id = stored_values[session_id]['current_example']
 
-    # check if experiment has been run already
+    # check if experiment has run already
     if dropdown_value:
         print(ctx_msg['states']['reload-graph-dropdown.value'])
         example_id = dropdown_value
 
-    # create new example id
+    # create new example id - refers to dropdown
     if not example_id:
-        if ':' in dataset:
-            dataset_info = dataset.split(':')
-            dataset_name, candas_keyword = dataset_info[0], dataset_info[1]
-            example_id = f'dataset:{dataset}_example:{candas_keyword}_numOfSents:{num_of_sentences}'
-        elif num_of_sentences:
-            example_id = stored_values[session_id]['current_example'] + f'_numOfSents:{num_of_sentences}'
+        # check if num of sentences was changed for current example
+        if num_of_sentences:
+            example_id = '_'.join(stored_values[session_id]['current_example'].split('_')[:-1])  # remove num_of_sent from current example
+            example_id = example_id + f'_{num_of_sentences}'  # add num_of_sents info
+
+        # create example ID for Candas settings
+        elif 'Candas' in dataset:
+            dataset_name, candas_keyword = dataset.split(':')
+            example_id = f'{dataset_name}_{candas_keyword}_{num_of_sentences}'
+
+        # other: upload example, general translations etc
         else:
-            example_id = f'dataset:{dataset}_numOfSents:{num_of_sentences}'
+            example_id = f'{dataset}_{num_of_sentences}'
 
+    # store example id as current example
     stored_values[session_id]['current_example'] = example_id
-
     print(example_id)
 
     # check if example with the same id has already run, else run it from scratch
@@ -388,17 +412,18 @@ def update_graph(
         if 'Generic translations' in example_id:
             sentences = get_generic_translations()
         elif 'metadata' in example_id:
-            dataset_name, candas_keyword = dataset.split(':')[:2]
+            candas_keyword = example_id.split('_')[1]
             sentences, metadata = get_candas_doc_metadata(candas_keyword)
         elif 'Candas' in example_id:
-            dataset_name, candas_keyword = dataset.split(':')[:2]
+            candas_keyword = example_id.split('_')[1]
             sentences = get_candas_doc(candas_keyword)
-        elif 'uploaded_example' in example_id:
+        elif 'uploaded_example' in example_id:  # todo add csv feature
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
             decoded = decoded.decode('utf-8').replace('\n', ' ')
             sentences = get_uploaded_example(decoded, langid)
         else:
+            print('Example not found, Figure has not been generated!')
             return go.Figure()
 
         # calculate word embeddings
@@ -657,7 +682,7 @@ def update_graph(
     # build final figure with previously defined traces
     fig = go.Figure(data=fig_data,
                     layout=go.Layout(
-                        title=f'<b>Experiment ID: "{example_id.replace("_", " ")}", Number of sentences: {len(sentences)}</b>',
+                        title=f'<b>Experiment ID: "{example_id.split("_")[0]}", Number of sentences: {len(sentences)}</b>',
                         height=900,
                         showlegend=True,
                         hovermode='closest',
