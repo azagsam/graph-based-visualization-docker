@@ -12,7 +12,11 @@ from utils.helpers import load_sentences_from_file, load_sentences_from_AutoSent
 
 from utils.encoders import SentenceBERT
 
-from utils.datasets import get_candas_doc, get_candas_doc_metadata, get_uploaded_example, get_generic_translations
+from utils.datasets import get_candas_doc, \
+    get_candas_doc_metadata, \
+    get_uploaded_example_txt, \
+    get_uploaded_example_csv, \
+    get_generic_translations
 
 import numpy as np
 
@@ -23,6 +27,7 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import os
+import io
 import uuid
 import datetime
 
@@ -215,7 +220,56 @@ def serve_layout():
                         ),
                         html.Div(id='output-data-upload'),
 
-                    ], body=True, style={'height': '220px'})),
+                        dbc.Row([
+
+                            dbc.Col([
+                                html.H6('Select:', style={'margin-top': '15px'}),
+                                dcc.RadioItems(
+                                    id='radioitems',
+                                    options=[
+                                        {'label': 'No groups', 'value': 'None'},
+                                        {'label': 'Cluster', 'value': 'cluster'},
+                                        {'label': 'Classes', 'value': 'classes'},
+                                    ],
+                                    labelStyle={'display': 'block',
+                                                'margin': '7px',
+                                                },
+                                    style={
+                                        'display': 'inline-block',
+                                        'margin-left': '10px'},
+                                    value='None'
+                                ),
+                            ]),
+
+                            dbc.Col([
+                                html.H6('Enter number of clusters (if you selected cluster):', style={'margin-top': '15px'}),
+                                dcc.Input(id="num_of_clusters-input",
+                                          type="number",
+                                          disabled=True,
+                                          placeholder="Enter num of clusters",
+                                          # value=5,
+                                          # style={'width': "20%"},
+                                          # debounce=False
+                                ),
+                            ]),
+
+                        ]),
+
+
+                        html.H6('Generate graph:', style={'margin-top': '15px'}),
+                        html.Button('Generate graph',
+                                    id='generate-graph-upload',
+                                    style={'background-color': 'lightskyblue'},
+                                    n_clicks=0,
+                                    ),
+                        dcc.Loading(id="loading-upload-your-data",
+                                    children=[html.Div(id="loading-output-1")],
+                                    type="circle",
+                                    style={'margin-top': '15px'}
+                                    ),
+
+
+                    ], body=True, style={'height': '500px'})),
 
                 dbc.Col(
                     dbc.Card([
@@ -223,11 +277,7 @@ def serve_layout():
                         html.H2(html.Strong('Reload graph')),
                         html.H6('Select experiment:'),
                         dcc.Dropdown(id="reload-graph-dropdown",
-                                     options=[
-                                         # {"label": "0", "value": 0},
-                                         # {"label": "1", "value": 1},
-                                         # {"label": "2", "value": 2}
-                                     ],
+                                     options=[],
                                      multi=False,
                                      placeholder="Select experiment",
                                      # value=0,
@@ -375,6 +425,17 @@ def display_page(pathname):
     else:
         return serve_layout()
 
+
+# Disable number of cluster
+@app.callback(Output('num_of_clusters-input', 'disabled'),
+              Input('radioitems', 'value'),
+)
+def disable_clusters(radioitems):
+    if radioitems == 'cluster':
+        return False
+    else:
+        return True
+
 @app.callback(
     Output('main-fig', 'figure'),  # update figure
     Output('reload-graph-dropdown', 'options'),  # update options of graph reload
@@ -436,13 +497,13 @@ def update_graph(
 
     # check for special triggers
     if ctx_msg['triggered']:
-        prop_ids = ['keyword-input.value', 'slider_nodes.value', 'slider_edges.value']
-
+        # if data was uploaded
         if ctx_msg['triggered'][0]['prop_id'] == 'upload-data.contents':
             print(list_of_names)
             example_id = f'uploaded_example_{list_of_names[0]}'
-
-        elif ctx_msg['triggered'][0]['prop_id'] in prop_ids:
+        # if keyword or sliders triggered an update
+        prop_ids = ['keyword-input.value', 'slider_nodes.value', 'slider_edges.value']
+        if ctx_msg['triggered'][0]['prop_id'] in prop_ids:
             assert 'current_example' in stored_values[session_id].keys()
             example_id = stored_values[session_id]['current_example']
 
@@ -463,7 +524,7 @@ def update_graph(
             dataset_name, candas_keyword = dataset.split(':')
             example_id = f'{dataset_name}_{candas_keyword}_{num_of_sentences}'
 
-        # other: upload example, general translations etc
+        # other:
         else:
             example_id = f'{dataset}_{num_of_sentences}'
 
@@ -484,8 +545,12 @@ def update_graph(
         elif 'uploaded_example' in example_id:  # todo add csv feature
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
-            decoded = decoded.decode('utf-8').replace('\n', ' ')
-            sentences = get_uploaded_example(decoded, langid)
+            if 'tsv' in list_of_names[0]:
+                # columns: class, sentence
+                uploaded_df = pd.read_table(io.StringIO(decoded.decode('utf-8')))
+            else:
+                decoded = decoded.decode('utf-8').replace('\n', ' ')
+                sentences = get_uploaded_example_txt(decoded, langid)
         else:
             print('Example not found, Figure has not been generated!')
             return go.Figure()
@@ -614,42 +679,7 @@ def update_graph(
         node_x.append(x)
         node_y.append(y)
 
-    # A) build figure without classes or clustering
-    node_trace = go.Scatter(
-        x=node_x, y=node_y,
-        mode='markers',
-        name='sentences',
-        hoverinfo='text',
-        marker=dict(
-            # showscale=True,
-            # colorscale options
-            # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
-            # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
-            # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            colorscale='Greens',
-            size=[s * 10 for s in centrality_scores],
-            colorbar=dict(
-                thickness=15,
-                title='Score',
-                xanchor='left',
-                titleside='right'
-            ),
-            line_width=1))
-
-    # FEATURE: wrap a sentence with neighbour sentences (useful for summarization to gain context)
-    context = sentences
-    node_adjacencies = []
-    node_text = []
-    for node, weight in enumerate(centrality_scores):
-        node_adjacencies.append(weight)
-        node_text.append(context[node])
-
-    node_trace.marker.color = node_adjacencies
-    node_trace.text = node_text
-
-    fig_data = [edge_trace, node_trace]
-
-    # B) show with classes (now works only for translations)
+    # A) show with classes (now works only for translations)
     if 'Generic translations' in example_id:
 
         color_keys = {
@@ -692,8 +722,8 @@ def update_graph(
             )
             fig_data.append(scatter_single)
 
-    # C) split candas based on metadata
-    if 'metadata' in example_id:
+    # B) split candas based on metadata
+    elif 'metadata' in example_id:
         # select class
         if 'bias' in example_id:
             idx = 3
@@ -741,6 +771,48 @@ def update_graph(
                 name=cluster_map[col]
             )
             fig_data.append(scatter_single)
+
+    # C) cluster uploaded data
+    elif 'upload_example' in example_id:
+        # 1) cluster
+        ...
+        # 2) csv
+
+    # D) build figure without classes or clustering
+    else:
+        node_trace = go.Scatter(
+            x=node_x, y=node_y,
+            mode='markers',
+            name='sentences',
+            hoverinfo='text',
+            marker=dict(
+                # showscale=True,
+                # colorscale options
+                # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
+                # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
+                # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
+                colorscale='Greens',
+                size=[s * 10 for s in centrality_scores],
+                colorbar=dict(
+                    thickness=15,
+                    title='Score',
+                    xanchor='left',
+                    titleside='right'
+                ),
+                line_width=1))
+
+        # FEATURE: wrap a sentence with neighbour sentences (useful for summarization to gain context)
+        context = sentences
+        node_adjacencies = []
+        node_text = []
+        for node, weight in enumerate(centrality_scores):
+            node_adjacencies.append(weight)
+            node_text.append(context[node])
+
+        node_trace.marker.color = node_adjacencies
+        node_trace.text = node_text
+
+        fig_data = [edge_trace, node_trace]
 
     # build final figure with previously defined traces
     fig = go.Figure(data=fig_data,

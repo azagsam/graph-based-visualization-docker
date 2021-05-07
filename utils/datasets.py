@@ -3,7 +3,12 @@ import nltk
 nltk.download('punkt')
 
 
-def get_uploaded_example(decoded, langid):
+def get_uploaded_example_txt(decoded, langid):
+    sentences = nltk.sent_tokenize(decoded, language=langid)
+    return sentences
+
+
+def get_uploaded_example_csv(decoded, langid):
     sentences = nltk.sent_tokenize(decoded, language=langid)
     return sentences
 
