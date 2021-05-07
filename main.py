@@ -87,7 +87,7 @@ def serve_layout():
     for key in old_keys:
         active_sessions.pop(key, None)
 
-    # DEBUG active sessions
+    # DEBUG session storing
     print('Number of active sessions:', len(active_sessions), 'Number of stored values:', len(stored_values))
     print('Active sessions:', active_sessions.keys())
     print('Stored values:', stored_values.keys())
@@ -96,19 +96,20 @@ def serve_layout():
     return dbc.Container(
         fluid=True,
         children=[
-            html.Div(id='page-3-content'),
-            html.H1(f'Multilingual Text Exploration: {session_id}'),
             dcc.Store(data=session_id, id='session-id'),
+
+            html.H1(f'Multilingual Text Exploration: {session_id}', style={'margin': '15px'}),
+
             html.Hr(),
 
             dbc.Row([
 
                 dbc.Nav(
                     [
-                        dbc.NavLink("Active", active=True, href="/"),
+                        dbc.NavLink("Home", active=True, href="/"),
                         dbc.NavLink("Instructions", href="/instructions"),
 
-                    ]
+                    ], style={'margin-left':'30px'}
                 )
 
             ]),
@@ -240,7 +241,7 @@ def serve_layout():
 
                     ], body=True, style={'height': '220px'})),
 
-            ], style={'margin': '30px'}),
+            ], style={'margin': '15px'}),
 
             dbc.Row([
 
@@ -309,75 +310,70 @@ def serve_layout():
         ])
 
 
-# app.layout = serve_layout
-
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div(id='page-content')
 ])
 
+instructions = dbc.Container(
+        fluid=True,
+        children=[
+html.H1(f'Multilingual Text Exploration', style={'margin': '15px'}),
+    html.Hr(),
+    dbc.Row([
 
-index_page = html.Div([
-    dcc.Link('Go to Page 1', href='/page-1'),
-    html.Br(),
-    dcc.Link('Go to Page 2', href='/page-2'),
-    html.Br(),
-    dcc.Link('Go to Page 3', href='/page-3'),
-])
+        dbc.Nav(
+            [
+                dbc.NavLink("Home", active=True, href="/"),
+                dbc.NavLink("Instructions", href="/instructions"),
 
-page_1_layout = html.Div([
-    html.H1('Page 1'),
-    dcc.Dropdown(
-        id='page-1-dropdown',
-        options=[{'label': i, 'value': i} for i in ['LA', 'NYC', 'MTL']],
-        value='LA'
-    ),
-    html.Div(id='page-1-content'),
-    html.Br(),
-    dcc.Link('Go to Page 2', href='/page-2'),
-    html.Br(),
-    dcc.Link('Go back to home', href='/'),
-])
+            ], style={'margin-left': '30px'}
+        )
+    ]),
+
+    dbc.Row([dcc.Markdown('''
+    
+## How it works
+This is a multilingual visualization tool. It takes raw text, tokenizes it into sentences, determines the importance 
+of each sentence according to the graph-based model, and presents it in a figure that can be interactively explored. 
+The importance of each sentence is indicated by how large the node is. The connections between sentences show how 
+well they correlate.
+
+## Usage
+Graphs are constructed in two steps:
+
+1) In the first row, you have three cards: demo datasets, upload your data, and reload graph. Through 
+   these three cards, you configure and import your data. 
+   The "Demo datasets" card contain preloaded experiments that show many different ways to present the data. 
+   After you run an experiment, it is saved into the memory 
+   so that you can reload it fast with the "Reload graph" card. "Upload you data" enables you to import your own data. 
+   Before you make an upload, you need to specify the language of your text. 
+   
+   
+2) In the second row, the graph figure is presented on the left. On the right, the 'Adjust graph' card contains 
+   options to update the graph. If you enter a keyword, all nodes that contain this keyword, will become the largest 
+   in the graph. You can limit the number of sentences if you have a large set. For purely visualization purposes, 
+   you can scale nodes size; higher number will emphasize larger nodes and make smaller ones even smaller. Edges 
+   threshold is a single cut-off value that either shows or hides connections between sentences; a very high value 
+   will connect only sentences that highly correspond in their meaning (in extreme cases only duplicates). 
+    
+    ''')], style={'width': '60rem', 'margin': '30px'})
+
+        ])
 
 @app.callback(dash.dependencies.Output('page-1-content', 'children'),
               [dash.dependencies.Input('page-1-dropdown', 'value')])
 def page_1_dropdown(value):
     return 'You have selected "{}"'.format(value)
 
-
-page_2_layout = html.Div([
-    html.H1('Page 2'),
-    dcc.RadioItems(
-        id='page-2-radios',
-        options=[{'label': i, 'value': i} for i in ['Orange', 'Blue', 'Red']],
-        value='Orange'
-    ),
-    html.Div(id='page-2-content'),
-    html.Br(),
-    dcc.Link('Go to Page 1', href='/page-1'),
-    html.Br(),
-    dcc.Link('Go back to home', href='/')
-])
-
-@app.callback(dash.dependencies.Output('page-2-content', 'children'),
-              [dash.dependencies.Input('page-2-radios', 'value')])
-def page_2_radios(value):
-    return 'You have selected "{}"'.format(value)
-
-
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
               [dash.dependencies.Input('url', 'pathname')])
 def display_page(pathname):
-    if pathname == '/page-1':
-        return page_1_layout
-    elif pathname == '/page-2':
-        return page_2_layout
-    elif pathname == '/page-3':
-        return serve_layout()
+    if pathname == '/instructions':
+        return instructions
     else:
-        return index_page
-    # You could also return a 404 "URL not found" page here
+        return serve_layout()
 
 @app.callback(
     Output('main-fig', 'figure'),  # update figure
