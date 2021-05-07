@@ -103,10 +103,11 @@ def serve_layout():
         children=[
             dcc.Store(data=session_id, id='session-id'),
 
+            # Page title
             html.H1(f'Multilingual Text Exploration: {session_id}', style={'margin': '15px'}),
-
             html.Hr(),
 
+            # Navigation buttons
             dbc.Row([
 
                 dbc.Nav(
@@ -114,13 +115,15 @@ def serve_layout():
                         dbc.NavLink("Home", active=True, href="/"),
                         dbc.NavLink("Instructions", href="/instructions"),
 
-                    ], style={'margin-left':'30px'}
+                    ], style={'margin-left': '30px'}
                 )
 
             ]),
 
+            # Data import
             dbc.Row([
 
+                # Demo datasets
                 dbc.Col(
                     dbc.Card([
 
@@ -178,12 +181,14 @@ def serve_layout():
                                     style={'margin-top': '15px'}
                                     ),
 
-                    ], body=True, style={'height': '220px'})),
+                    ], body=True, style={'height': '220px'})
+                ),
 
+                # Upload your data
                 dbc.Col(
                     dbc.Card([
 
-                        html.H2(html.Strong('Upload your data')),
+                        html.H2(html.Strong('Upload data')),
 
                         html.H6('Select language:'),
                         dcc.Dropdown(id="select_language",
@@ -215,6 +220,7 @@ def serve_layout():
                                 'textAlign': 'center',
                                 'margin': '10px'
                             },
+                            disabled=False,
                             # Allow multiple files to be uploaded
                             multiple=True
                         ),
@@ -242,7 +248,8 @@ def serve_layout():
                             ]),
 
                             dbc.Col([
-                                html.H6('Enter number of clusters (if you selected cluster):', style={'margin-top': '15px'}),
+                                html.H6('Enter number of clusters (if you selected cluster):',
+                                        style={'margin-top': '15px'}),
                                 dcc.Input(id="num_of_clusters-input",
                                           type="number",
                                           disabled=True,
@@ -250,11 +257,10 @@ def serve_layout():
                                           # value=5,
                                           # style={'width': "20%"},
                                           # debounce=False
-                                ),
+                                          ),
                             ]),
 
                         ]),
-
 
                         html.H6('Generate graph:', style={'margin-top': '15px'}),
                         html.Button('Generate graph',
@@ -268,9 +274,10 @@ def serve_layout():
                                     style={'margin-top': '15px'}
                                     ),
 
+                    ], body=True, style={'height': '500px'})
+                ),
 
-                    ], body=True, style={'height': '500px'})),
-
+                # Reload graph
                 dbc.Col(
                     dbc.Card([
 
@@ -289,10 +296,12 @@ def serve_layout():
                                     style={'background-color': 'lightskyblue'},
                                     n_clicks=0),
 
-                    ], body=True, style={'height': '220px'})),
+                    ], body=True, style={'height': '220px'})
+                ),
 
             ], style={'margin': '15px'}),
 
+            # Figure
             dbc.Row([
 
                 dbc.Col([dbc.Card(dcc.Graph(id='main-fig'))], width=10),
@@ -353,10 +362,6 @@ def serve_layout():
 
             ], style={'margin': '30px'}),
 
-            dbc.Row([
-
-            ], style={'margin': '30px'})
-
         ])
 
 
@@ -366,22 +371,22 @@ app.layout = html.Div([
 ])
 
 instructions = dbc.Container(
-        fluid=True,
-        children=[
-html.H1(f'Multilingual Text Exploration', style={'margin': '15px'}),
-    html.Hr(),
-    dbc.Row([
+    fluid=True,
+    children=[
+        html.H1(f'Multilingual Text Exploration', style={'margin': '15px'}),
+        html.Hr(),
+        dbc.Row([
 
-        dbc.Nav(
-            [
-                dbc.NavLink("Home", active=True, href="/"),
-                dbc.NavLink("Instructions", href="/instructions"),
+            dbc.Nav(
+                [
+                    dbc.NavLink("Home", active=True, href="/"),
+                    dbc.NavLink("Instructions", href="/instructions"),
 
-            ], style={'margin-left': '30px'}
-        )
-    ]),
+                ], style={'margin-left': '30px'}
+            )
+        ]),
 
-    dbc.Row([dcc.Markdown('''
+        dbc.Row([dcc.Markdown('''
     
 ## How it works
 This is a multilingual visualization tool. It takes raw text, tokenizes it into sentences, determines the importance 
@@ -409,12 +414,14 @@ Graphs are constructed in two steps:
     
     ''')], style={'width': '60rem', 'margin': '30px'})
 
-        ])
+    ])
+
 
 @app.callback(dash.dependencies.Output('page-1-content', 'children'),
               [dash.dependencies.Input('page-1-dropdown', 'value')])
 def page_1_dropdown(value):
     return 'You have selected "{}"'.format(value)
+
 
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
@@ -426,15 +433,32 @@ def display_page(pathname):
         return serve_layout()
 
 
-# Disable number of cluster
+# Disable number of clusters
 @app.callback(Output('num_of_clusters-input', 'disabled'),
               Input('radioitems', 'value'),
-)
+              )
 def disable_clusters(radioitems):
     if radioitems == 'cluster':
         return False
     else:
         return True
+
+
+# Enable/disable upload button
+@app.callback(Output('upload-data', 'disabled'),
+              Output('upload-data', 'children'),
+              Input('upload-data', 'filename'),
+              Input('generate-graph-upload', 'n_clicks'),
+              )
+def disable_upload_button(filename, generate_button):
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'] == 'upload-data.filename':
+        output_text = html.Div([f'{filename[0]} uploaded'])
+        return True, output_text
+    else:
+        output_text = html.Div(['Drag and Drop or ', html.A('Select File')])
+        return False, output_text
+
 
 @app.callback(
     Output('main-fig', 'figure'),  # update figure
@@ -445,24 +469,28 @@ def disable_clusters(radioitems):
 
     Input('generate-graph-button', 'n_clicks'),
     Input('reload-graph-button', 'n_clicks'),
+    Input('generate-graph-upload', 'n_clicks'),
     Input('keyword-input', 'value'),
     Input('num_of_sentences-input', 'value'),
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
-    Input('upload-data', 'contents'),
 
+    State('upload-data', 'contents'),
     State('reload-graph-dropdown', 'options'),
     State('reload-graph-dropdown', 'value'),
     State('select_dataset-dropdown', 'value'),
     State('select_language', 'value'),
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
-    State('session-id', 'data')
+    State('session-id', 'data'),
+    State('radioitems', 'value'),
+    State('num_of_clusters-input', 'value')
 )
 def update_graph(
         # inputs
         submit,
         reload,
+        generate_graph_upload,
         keyword,
         num_of_sentences,
         slider_nodes,
@@ -476,9 +504,10 @@ def update_graph(
         langid,
         list_of_names,
         list_of_dates,
-        session_id
+        session_id,
+        radioitem_value,
+        num_of_clusters
 ):
-
     # save session in stored_values if it does not exists yet
     if session_id not in stored_values.keys():
         stored_values[session_id] = {}
@@ -497,10 +526,10 @@ def update_graph(
 
     # check for special triggers
     if ctx_msg['triggered']:
-        # if data was uploaded
-        if ctx_msg['triggered'][0]['prop_id'] == 'upload-data.contents':
-            print(list_of_names)
-            example_id = f'uploaded_example_{list_of_names[0]}'
+        # # if data was uploaded
+        # if ctx_msg['triggered'][0]['prop_id'] == 'upload-data.contents':
+        #     print(list_of_names)
+        #     example_id = f'uploaded_example_{list_of_names[0]}'
         # if keyword or sliders triggered an update
         prop_ids = ['keyword-input.value', 'slider_nodes.value', 'slider_edges.value']
         if ctx_msg['triggered'][0]['prop_id'] in prop_ids:
@@ -516,8 +545,14 @@ def update_graph(
     if not example_id:
         # check if num of sentences was changed for current example
         if num_of_sentences:
-            example_id = '_'.join(stored_values[session_id]['current_example'].split('_')[:-1])  # remove num_of_sent from current example
+            example_id = '_'.join(
+                stored_values[session_id]['current_example'].split('_')[:-1])  # remove num_of_sent from current example
             example_id = example_id + f'_{num_of_sentences}'  # add num_of_sents info
+
+        # catch upload data
+        elif list_of_contents:
+            print(list_of_names)
+            example_id = f'uploaded_example_{list_of_names[0]}'
 
         # create example ID for Candas settings
         elif 'Candas' in dataset:
