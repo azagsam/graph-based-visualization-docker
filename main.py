@@ -1,9 +1,11 @@
 import pandas as pd
 import plotly.graph_objects as go
+from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 import networkx as nx
+from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import MinMaxScaler
 
 from utils.helpers import load_sentences_from_file, load_sentences_from_AutoSentiNews, \
@@ -103,10 +105,6 @@ def serve_layout():
         children=[
             dcc.Store(data=session_id, id='session-id'),
 
-            # Page title
-            html.H1(f'Multilingual Text Exploration: {session_id}', style={'margin': '15px'}),
-            html.Hr(),
-
             # Navigation buttons
             dbc.Row([
 
@@ -123,8 +121,107 @@ def serve_layout():
             # Data import
             dbc.Row([
 
+                # Upload your data
+                dbc.Col([
+                    dbc.Card([
+
+                        html.H2(html.Strong('Upload data')),
+
+                        html.H6('Select language:'),
+                        dcc.Dropdown(id="select_language",
+                                     options=[
+                                         {"label": "Slovene", "value": 'slovene'},
+                                         {"label": "English", "value": 'english'},
+                                         {"label": "German", "value": 'german'},
+                                     ],
+                                     multi=False,
+                                     placeholder="Select language",
+                                     value='slovene',
+                                     # style={'width': "40%"}
+                                     ),
+                        html.Div(id='select_language-output-container'),
+
+                        dcc.Upload(
+                            id='upload-data',
+                            children=html.Div([
+                                # 'Drag and Drop or ',
+                                html.Button('Upload file')
+                            ]),
+                            style={
+                                # 'width': '40%',
+                                # 'height': '60px',
+                                # 'lineHeight': '60px',
+                                # 'borderWidth': '1px',
+                                # 'borderStyle': 'dashed',
+                                # 'borderRadius': '5px',
+                                # 'textAlign': 'center',
+                                'margin-top': '10px'
+                            },
+                            disabled=False,
+                            # Allow multiple files to be uploaded
+                            multiple=True
+                        ),
+                        html.Div(id='output-data-upload'),
+
+                        dbc.Row([
+
+                            dbc.Col([
+                                html.H6('Select:', style={'margin-top': '15px'}),
+                                dcc.RadioItems(
+                                    id='radioitems',
+                                    options=[
+                                        {'label': ' No groups', 'value': 'None'},
+                                        {'label': ' Cluster', 'value': 'cluster'},
+                                        {'label': ' Classes', 'value': 'classes'},
+                                    ],
+                                    labelStyle={'display': 'block',
+                                                'margin': '7px',
+                                                },
+                                    style={
+                                        'display': 'inline-block',
+                                        'margin-left': '10px'},
+                                    value='None'
+                                ),
+                            ]),
+
+                            # dbc.Col([
+                            #     html.H6('Enter number of clusters:',
+                            #             style={'margin-top': '15px'}),
+                            #     dcc.Input(id="num_of_clusters-input",
+                            #               type="number",
+                            #               disabled=True,
+                            #               placeholder="Enter num of clusters",
+                            #               # value=5,
+                            #               # style={'width': "20%"},
+                            #               # debounce=False
+                            #               ),
+                            # ]),
+
+                        ]),
+
+                        html.H6('Enter number of clusters:',
+                                style={'margin-top': '9px'}),
+                        dcc.Input(id="num_of_clusters-input",
+                                  type="number",
+                                  disabled=True,
+                                  placeholder="Enter num of clusters",
+                                  # value=5,
+                                  # style={'width': "20%"},
+                                  # debounce=False
+                                  ),
+
+                        html.H6('Generate graph:', style={'margin-top': '15px'}),
+                        html.Button('Generate graph',
+                                    id='generate-graph-upload',
+                                    style={'background-color': 'lightskyblue'},
+                                    n_clicks=0,
+                                    ),
+
+                    ], body=True, style={'height': '470px'}),
+                ], width=3),
+
                 # Demo datasets
-                dbc.Col(
+                dbc.Col([
                     dbc.Card([
 
                         # html.H2(html.Strong('Configure data')),
@@ -175,110 +272,8 @@ def serve_layout():
                                     style={'background-color': 'lightskyblue'},
                                     n_clicks=0,
                                     ),
-                        dcc.Loading(id="loading-1",
-                                    children=[html.Div(id="loading-output-1")],
-                                    type="circle",
-                                    style={'margin-top': '15px'}
-                                    ),
 
-                    ], body=True, style={'height': '220px'})
-                ),
-
-                # Upload your data
-                dbc.Col(
-                    dbc.Card([
-
-                        html.H2(html.Strong('Upload data')),
-
-                        html.H6('Select language:'),
-                        dcc.Dropdown(id="select_language",
-                                     options=[
-                                         {"label": "Slovene", "value": 'slovene'},
-                                         {"label": "English", "value": 'english'},
-                                         {"label": "German", "value": 'german'},
-                                     ],
-                                     multi=False,
-                                     placeholder="Select language",
-                                     value='slovene',
-                                     # style={'width': "40%"}
-                                     ),
-                        html.Div(id='select_language-output-container'),
-
-                        dcc.Upload(
-                            id='upload-data',
-                            children=html.Div([
-                                'Drag and Drop or ',
-                                html.A('Select File')
-                            ]),
-                            style={
-                                # 'width': '40%',
-                                'height': '60px',
-                                'lineHeight': '60px',
-                                'borderWidth': '1px',
-                                'borderStyle': 'dashed',
-                                'borderRadius': '5px',
-                                'textAlign': 'center',
-                                'margin': '10px'
-                            },
-                            disabled=False,
-                            # Allow multiple files to be uploaded
-                            multiple=True
-                        ),
-                        html.Div(id='output-data-upload'),
-
-                        dbc.Row([
-
-                            dbc.Col([
-                                html.H6('Select:', style={'margin-top': '15px'}),
-                                dcc.RadioItems(
-                                    id='radioitems',
-                                    options=[
-                                        {'label': 'No groups', 'value': 'None'},
-                                        {'label': 'Cluster', 'value': 'cluster'},
-                                        {'label': 'Classes', 'value': 'classes'},
-                                    ],
-                                    labelStyle={'display': 'block',
-                                                'margin': '7px',
-                                                },
-                                    style={
-                                        'display': 'inline-block',
-                                        'margin-left': '10px'},
-                                    value='None'
-                                ),
-                            ]),
-
-                            dbc.Col([
-                                html.H6('Enter number of clusters (if you selected cluster):',
-                                        style={'margin-top': '15px'}),
-                                dcc.Input(id="num_of_clusters-input",
-                                          type="number",
-                                          disabled=True,
-                                          placeholder="Enter num of clusters",
-                                          # value=5,
-                                          # style={'width': "20%"},
-                                          # debounce=False
-                                          ),
-                            ]),
-
-                        ]),
-
-                        html.H6('Generate graph:', style={'margin-top': '15px'}),
-                        html.Button('Generate graph',
-                                    id='generate-graph-upload',
-                                    style={'background-color': 'lightskyblue'},
-                                    n_clicks=0,
-                                    ),
-                        dcc.Loading(id="loading-upload-your-data",
-                                    children=[html.Div(id="loading-output-1")],
-                                    type="circle",
-                                    style={'margin-top': '15px'}
-                                    ),
-
-                    ], body=True, style={'height': '500px'})
-                ),
-
-                # Reload graph
-                dbc.Col(
+                    ], body=True, style={'height': '220px'}),
                     dbc.Card([
 
                         html.H2(html.Strong('Reload graph')),
@@ -296,8 +291,24 @@ def serve_layout():
                                     style={'background-color': 'lightskyblue'},
                                     n_clicks=0),
 
-                    ], body=True, style={'height': '220px'})
-                ),
+                    ], body=True, style={'height': '220px', 'margin-top': '30px'}),
+
+                ], width=3),
+
+                dbc.Col([
+                    dbc.Card([
+                        html.H2(html.Strong('Multilingual Text Exploration')),
+                        html.H6(f'Session ID: {session_id}'),
+                        dcc.Loading(id="loading-1",
+                                    children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
+                                    type="circle",
+                                    style={'margin': '50px', 'font-size': '50x'}
+                                    ),
+                    ], body=True, style={'height': '470px'})
+
+                ], width=6)
+
+
 
             ], style={'margin': '15px'}),
 
@@ -318,13 +329,13 @@ def serve_layout():
                               # style={'width': "20%"},
                               debounce=True),
 
-                    html.H6('Limit number of sentences (optional):', style={'margin-top': '15px'}),
-                    dcc.Input(id="num_of_sentences-input",
-                              type="number",
-                              placeholder="Enter num of sentences",
-                              # value=-1,
-                              # style={'width': "20%"},
-                              debounce=True),
+                    # html.H6('Limit number of sentences (optional):', style={'margin-top': '15px'}),
+                    # dcc.Input(id="num_of_sentences-input",
+                    #           type="number",
+                    #           placeholder="Enter num of sentences",
+                    #           # value=-1,
+                    #           # style={'width': "20%"},
+                    #           debounce=True),
 
                     html.H6('Scale nodes size:', style={'margin-top': '15px'}),
                     dcc.Slider(id='slider_nodes',
@@ -466,12 +477,13 @@ def disable_upload_button(filename, generate_button):
     Output('reload-graph-dropdown', 'value'),  # to clear reload dropdown
     Output('loading-output-1', 'children'),  # message to display instead of the loading button
     Output('select_dataset-dropdown', 'value'),  # to clear demo datasets dropdown
+    #Output('num_of_clusters-input', 'value'),  # to clear num of clusters
 
     Input('generate-graph-button', 'n_clicks'),
     Input('reload-graph-button', 'n_clicks'),
     Input('generate-graph-upload', 'n_clicks'),
     Input('keyword-input', 'value'),
-    Input('num_of_sentences-input', 'value'),
+    #Input('num_of_sentences-input', 'value'),
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
 
@@ -492,7 +504,7 @@ def update_graph(
         reload,
         generate_graph_upload,
         keyword,
-        num_of_sentences,
+        #num_of_sentences,
         slider_nodes,
         slider_edges,
         list_of_contents,
@@ -511,8 +523,10 @@ def update_graph(
     # save session in stored_values if it does not exists yet
     if session_id not in stored_values.keys():
         stored_values[session_id] = {}
+        stored_values[session_id]['uploaded_csv'] = {}
 
     # start building example ID
+    num_of_sentences = None
     example_id = None
 
     # for debbuging
@@ -552,7 +566,7 @@ def update_graph(
         # catch upload data
         elif list_of_contents:
             print(list_of_names)
-            example_id = f'uploaded_example_{list_of_names[0]}'
+            example_id = f'uploaded_example_{list_of_names[0]}_{radioitem_value}'
 
         # create example ID for Candas settings
         elif 'Candas' in dataset:
@@ -583,6 +597,8 @@ def update_graph(
             if 'tsv' in list_of_names[0]:
                 # columns: class, sentence
                 uploaded_df = pd.read_table(io.StringIO(decoded.decode('utf-8')))
+                stored_values[session_id]['uploaded_csv'][example_id] = uploaded_df
+                sentences = uploaded_df['sentence'].tolist()
             else:
                 decoded = decoded.decode('utf-8').replace('\n', ' ')
                 sentences = get_uploaded_example_txt(decoded, langid)
@@ -808,10 +824,48 @@ def update_graph(
             fig_data.append(scatter_single)
 
     # C) cluster uploaded data
-    elif 'upload_example' in example_id:
-        # 1) cluster
-        ...
-        # 2) csv
+    elif ('uploaded_example' in example_id) and ('cluster' in example_id or 'class' in example_id):
+        # cluster
+        if 'cluster' in example_id:
+            gm = KMeans(n_clusters=num_of_clusters).fit(embeddings)
+            classes = gm.predict(embeddings)
+        # csv
+        else:
+            uploaded_df = stored_values[session_id]['uploaded_csv'][example_id]
+            classes = uploaded_df['source'].tolist()
+
+        fig_df = pd.DataFrame({
+            'x': node_x,
+            'y': node_y,
+            'classes': classes,
+            'centrality': centrality_scores,
+            'sentences': sentences
+        })
+        num_of_unique = len(fig_df['classes'].unique())
+        map_indices = {idx: cls for idx, cls in enumerate(fig_df['classes'].unique())}
+
+        fig_data = [edge_trace]
+        for col in range(num_of_unique):
+            d = fig_df[fig_df['classes'] == map_indices[col]]
+            scatter_single = go.Scatter(
+                mode='markers',
+                hovertemplate=[sent + '<extra></extra>' for sent in d['sentences'].tolist()],
+                hovertext='text',
+                x=d['x'],
+                y=d['y'],
+                opacity=0.5,
+                marker=dict(
+                    color=col,
+                    size=[s * 10 for s in d['centrality']],
+                    line=dict(
+                        # color='MediumPurple',
+                        width=1
+                    )
+                ),
+                showlegend=True,
+                name=f'{map_indices[col]}'
+            )
+            fig_data.append(scatter_single)
 
     # D) build figure without classes or clustering
     else:
@@ -885,7 +939,7 @@ def update_graph(
         exp_option = {'label': f'{example_id}', 'value': f'{example_id}'}
         experiments.append(exp_option)
 
-    return fig, experiments, '', '', ''
+    return fig, experiments, '', '', '',
 
 
 if __name__ == '__main__':
