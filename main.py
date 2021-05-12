@@ -10,7 +10,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 from utils.helpers import load_sentences_from_file, load_sentences_from_AutoSentiNews, \
     load_sentences_from_cro_comments, scale_centrality_scores, \
-    get_context_for_sentences
+    get_context_for_sentences, get_context_for_sentences
 
 from utils.encoders import SentenceBERT
 
@@ -304,6 +304,19 @@ def serve_layout():
                                     type="circle",
                                     style={'margin': '50px', 'font-size': '50x'}
                                     ),
+    #                     dcc.Markdown(id='sentence-box',
+    #                         children=['''
+    # *This text will be italic*
+    #
+    # _This will also be italic_
+    #
+    #
+    # **This text will be bold**
+    #
+    # __This will also be bold__
+    #
+    # _You **can** combine them_
+    # '''])
                     ], body=True, style={'height': '470px'})
 
                 ], width=6)
@@ -369,6 +382,20 @@ def serve_layout():
                                ),
                     html.Div(id='slider_edges-output-container'),
 
+                    html.H6('Contextualize uploaded data:', style={'margin-top': '15px'}),
+                    dcc.RadioItems(id='context',
+                        options=[
+                            {'label': ' No', 'value': 'no'},
+                            {'label': ' Yes', 'value': 'yes'},
+                        ],
+                        value='no',
+                                   labelStyle={'display': 'block',
+                                               'margin': '7px',
+                                               },
+                                   style={
+                                       'display': 'inline-block',
+                                       'margin-left': '10px'},
+                    )
                 ], body=True), width=2),
 
             ], style={'margin': '30px'}),
@@ -428,10 +455,10 @@ Graphs are constructed in two steps:
     ])
 
 
-@app.callback(dash.dependencies.Output('page-1-content', 'children'),
-              [dash.dependencies.Input('page-1-dropdown', 'value')])
-def page_1_dropdown(value):
-    return 'You have selected "{}"'.format(value)
+# @app.callback(dash.dependencies.Output('page-1-content', 'children'),
+#               [dash.dependencies.Input('page-1-dropdown', 'value')])
+# def page_1_dropdown(value):
+#     return 'You have selected "{}"'.format(value)
 
 
 # Update the index
@@ -467,7 +494,10 @@ def disable_upload_button(filename, generate_button):
         output_text = html.Div([f'{filename[0]} uploaded'])
         return True, output_text
     else:
-        output_text = html.Div(['Drag and Drop or ', html.A('Select File')])
+        output_text = html.Div([
+                                # 'Drag and Drop or ',
+                                html.Button('Upload file')
+                            ])
         return False, output_text
 
 
@@ -486,6 +516,7 @@ def disable_upload_button(filename, generate_button):
     #Input('num_of_sentences-input', 'value'),
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
+    Input('context', 'value'),
 
     State('upload-data', 'contents'),
     State('reload-graph-dropdown', 'options'),
@@ -496,7 +527,7 @@ def disable_upload_button(filename, generate_button):
     State('upload-data', 'last_modified'),
     State('session-id', 'data'),
     State('radioitems', 'value'),
-    State('num_of_clusters-input', 'value')
+    State('num_of_clusters-input', 'value'),
 )
 def update_graph(
         # inputs
@@ -507,9 +538,10 @@ def update_graph(
         #num_of_sentences,
         slider_nodes,
         slider_edges,
-        list_of_contents,
+        contextualize,
 
         # states
+        list_of_contents,
         experiments,
         reload_graph_value,
         dataset,
@@ -520,7 +552,7 @@ def update_graph(
         radioitem_value,
         num_of_clusters
 ):
-    # save session in stored_values if it does not exists yet
+    # save session in stored_values if it does not exist yet
     if session_id not in stored_values.keys():
         stored_values[session_id] = {}
         stored_values[session_id]['uploaded_csv'] = {}
@@ -566,7 +598,7 @@ def update_graph(
         # catch upload data
         elif list_of_contents:
             print(list_of_names)
-            example_id = f'uploaded_example_{list_of_names[0]}_{radioitem_value}'
+            example_id = f'upload_{list_of_names[0]}_{radioitem_value}'
 
         # create example ID for Candas settings
         elif 'Candas' in dataset:
@@ -591,12 +623,12 @@ def update_graph(
         elif 'Candas' in example_id:
             candas_keyword = example_id.split('_')[1]
             sentences = get_candas_doc(candas_keyword)
-        elif 'uploaded_example' in example_id:  # todo add csv feature
+        elif example_id.startswith('upload'):  # todo add csv feature
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
-            if 'tsv' in list_of_names[0]:
+            if 'csv' in list_of_names[0]:
                 # columns: class, sentence
-                uploaded_df = pd.read_table(io.StringIO(decoded.decode('utf-8')))
+                uploaded_df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
                 stored_values[session_id]['uploaded_csv'][example_id] = uploaded_df
                 sentences = uploaded_df['sentence'].tolist()
             else:
@@ -673,6 +705,10 @@ def update_graph(
         stored_values[session_id][example_id] = (sentences, embeddings, sim_mat, score_list, pos)
     else:
         sentences, embeddings, sim_mat, score_list, pos = stored_values[session_id][example_id]
+
+    # FEATURE: zoom nodes that contain entered keyword
+    if contextualize == 'yes':
+        sentences = get_context_for_sentences(sentences)
 
     # FEATURE: zoom nodes that contain entered keyword
     if keyword:
@@ -824,15 +860,27 @@ def update_graph(
             fig_data.append(scatter_single)
 
     # C) cluster uploaded data
-    elif ('uploaded_example' in example_id) and ('cluster' in example_id or 'class' in example_id):
+    elif example_id.startswith('upload') and (example_id.endswith('cluster') or example_id.endswith('classes')):
+
         # cluster
-        if 'cluster' in example_id:
-            gm = KMeans(n_clusters=num_of_clusters).fit(embeddings)
-            classes = gm.predict(embeddings)
-        # csv
+        if example_id.endswith('cluster'):
+            # expand current example id with cluster information
+            example_id_cluster = f'_clusters_{num_of_clusters}'
+
+            # save results in session id
+            if example_id_cluster not in stored_values[session_id].keys():
+                print('Clusters were not calculated yet!')
+                km = KMeans(n_clusters=num_of_clusters).fit(embeddings)
+                classes = km.predict(embeddings)
+                stored_values[session_id][example_id_cluster] = classes
+            else:
+                print('Reloading calculated clsuters ...')
+                classes = stored_values[session_id][example_id_cluster]
+
+        # classes
         else:
             uploaded_df = stored_values[session_id]['uploaded_csv'][example_id]
-            classes = uploaded_df['source'].tolist()
+            classes = uploaded_df['class'].tolist()
 
         fig_df = pd.DataFrame({
             'x': node_x,
@@ -906,7 +954,7 @@ def update_graph(
     # build final figure with previously defined traces
     fig = go.Figure(data=fig_data,
                     layout=go.Layout(
-                        title=f'<b>Experiment ID: "{example_id.split("_")[0]}", Number of sentences: {len(sentences)}</b>',
+                        title=f'<b>Experiment ID: "{example_id}", Number of sentences: {len(sentences)}</b>',
                         height=900,
                         showlegend=True,
                         hovermode='closest',
@@ -933,6 +981,8 @@ def update_graph(
                     )
                     )
 
+    # fig.update_layout(clickmode='select')
+
     # save experiment setup
     current_experiments = [e['label'] for e in experiments]
     if example_id not in current_experiments:
@@ -940,6 +990,27 @@ def update_graph(
         experiments.append(exp_option)
 
     return fig, experiments, '', '', '',
+
+
+# #side bar call back start
+# @app.callback(
+#     Output('main-fig', 'clickData'),
+#     [Input('main-fig', 'hoverData')])
+# def display_hover_data(clickData):
+#     print('Hover !!!')
+
+
+@app.callback(
+    Output('upload-data', 'value'),
+    Input('main-fig', 'clickData'),
+    State('main-fig', 'figure')
+)
+def callback(selection, fig):
+    labels = ['hovertemplate', 'text']
+    for label in labels:
+        if label in selection['points'][0].keys():
+            sentence = selection['points'][0][label]
+            print(sentence)
 
 
 if __name__ == '__main__':
