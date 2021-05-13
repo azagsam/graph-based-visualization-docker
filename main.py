@@ -28,10 +28,14 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
+from dash_extensions import Download
+from dash_extensions.snippets import send_data_frame
+
 import os
 import io
 import uuid
 import datetime
+import re
 
 # stored values and metavariables
 stored_values = {}
@@ -116,7 +120,7 @@ def serve_layout():
                     ], style={'margin-left': '30px'}
                 )
 
-            ]),
+            ], style={'margin': '15px'}),
 
             # Data import
             dbc.Row([
@@ -209,12 +213,16 @@ def serve_layout():
                                   # style={'width': "20%"},
                                   # debounce=False
                                   ),
-
                         html.H6('Generate graph:', style={'margin-top': '15px'}),
                         html.Button('Generate graph',
                                     id='generate-graph-upload',
                                     style={'background-color': 'lightskyblue'},
                                     n_clicks=0,
+                                    ),
+                        dcc.Loading(id="loading-1",
+                                    children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
+                                    type="circle",
+                                    style={'margin': '10px', 'font-size': '50x'}
                                     ),
 
                     ], body=True, style={'height': '470px'}),
@@ -297,38 +305,28 @@ def serve_layout():
 
                 dbc.Col([
                     dbc.Card([
-                        html.H2(html.Strong('Multilingual Text Exploration')),
-                        html.H6(f'Session ID: {session_id}'),
-                        dcc.Loading(id="loading-1",
-                                    children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
-                                    type="circle",
-                                    style={'margin': '50px', 'font-size': '50x'}
-                                    ),
-    #                     dcc.Markdown(id='sentence-box',
-    #                         children=['''
-    # *This text will be italic*
-    #
-    # _This will also be italic_
-    #
-    #
-    # **This text will be bold**
-    #
-    # __This will also be bold__
-    #
-    # _You **can** combine them_
-    # '''])
+                        # html.H2(html.Strong('Multilingual Text Exploration')),
+                        # html.H6(f'Session ID: {session_id}'),
+                        html.H2(html.Strong('Selected sentences')),
+                        html.Div([], style={'height': '400px', "overflow": "scroll"}, id='sentence-div'),
+
+                        # html.H6(f'Download selected sentences:'),
+                        html.Button("Download sentences",
+                                    id="download_button",
+                                    style={'background-color': 'lightskyblue',
+                                           'margin-top': '15px'}),
+                        Download(id="download"),
                     ], body=True, style={'height': '470px'})
 
                 ], width=6)
 
-
-
-            ], style={'margin': '15px'}),
+            ], style={'margin': '15px'}
+            ),
 
             # Figure
             dbc.Row([
 
-                dbc.Col([dbc.Card(dcc.Graph(id='main-fig'))], width=10),
+                dbc.Col([dbc.Card(dcc.Graph(id='main-fig'), body=True)], width=10, style={'margin-top': '15px'}),
 
                 dbc.Col(dbc.Card([
 
@@ -384,21 +382,21 @@ def serve_layout():
 
                     html.H6('Contextualize uploaded data:', style={'margin-top': '15px'}),
                     dcc.RadioItems(id='context',
-                        options=[
-                            {'label': ' No', 'value': 'no'},
-                            {'label': ' Yes', 'value': 'yes'},
-                        ],
-                        value='no',
+                                   options=[
+                                       {'label': ' No', 'value': 'no'},
+                                       {'label': ' Yes', 'value': 'yes'},
+                                   ],
+                                   value='no',
                                    labelStyle={'display': 'block',
                                                'margin': '7px',
                                                },
                                    style={
                                        'display': 'inline-block',
                                        'margin-left': '10px'},
-                    )
-                ], body=True), width=2),
+                                   )
+                ], body=True), width=2, style={'margin-top': '15px'}),
 
-            ], style={'margin': '30px'}),
+            ], style={'margin': '15px'}),
 
         ])
 
@@ -455,12 +453,6 @@ Graphs are constructed in two steps:
     ])
 
 
-# @app.callback(dash.dependencies.Output('page-1-content', 'children'),
-#               [dash.dependencies.Input('page-1-dropdown', 'value')])
-# def page_1_dropdown(value):
-#     return 'You have selected "{}"'.format(value)
-
-
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
               [dash.dependencies.Input('url', 'pathname')])
@@ -495,25 +487,68 @@ def disable_upload_button(filename, generate_button):
         return True, output_text
     else:
         output_text = html.Div([
-                                # 'Drag and Drop or ',
-                                html.Button('Upload file')
-                            ])
+            # 'Drag and Drop or ',
+            html.Button('Upload file')
+        ])
         return False, output_text
 
 
+# save user selected sentences
+@app.callback(
+    Output('sentence-div', 'children'),
+    Input('main-fig', 'clickData'),  # you can also monitor "hoverData"
+    State('sentence-div', 'children')
+)
+def callback(selection, sentence_div):
+    labels = ['hovertemplate', 'text']
+    for label in labels:
+        if label in selection['points'][0].keys():
+            # build sentence
+            sentence = selection['points'][0][label]
+            # remove tags
+            sentence = re.sub('<[^>]*>', ' ', sentence)
+            # build entry
+            entry = [
+                {
+                'props': {
+                    'children': sentence
+                },
+                'type': 'P',
+                'namespace': 'dash_html_components'
+                }
+            ]
+            print(sentence)
+            return entry + sentence_div
+
+
+# download selected sentences
+@app.callback(Output("download", "data"),
+              Input("download_button", "n_clicks"),
+              State('sentence-div', 'children')
+)
+def generate_csv(n_nlicks, sentence_div):
+    # create a list of sentences
+    sentences = [entry['props']['children'] for entry in sentence_div]
+    df = pd.DataFrame({
+        'sentences': sentences
+    })
+    return send_data_frame(df.to_csv, filename="selected_sentences.csv")
+
+
+# main callback
 @app.callback(
     Output('main-fig', 'figure'),  # update figure
     Output('reload-graph-dropdown', 'options'),  # update options of graph reload
     Output('reload-graph-dropdown', 'value'),  # to clear reload dropdown
     Output('loading-output-1', 'children'),  # message to display instead of the loading button
     Output('select_dataset-dropdown', 'value'),  # to clear demo datasets dropdown
-    #Output('num_of_clusters-input', 'value'),  # to clear num of clusters
+    # Output('num_of_clusters-input', 'value'),  # to clear num of clusters
 
     Input('generate-graph-button', 'n_clicks'),
     Input('reload-graph-button', 'n_clicks'),
     Input('generate-graph-upload', 'n_clicks'),
     Input('keyword-input', 'value'),
-    #Input('num_of_sentences-input', 'value'),
+    # Input('num_of_sentences-input', 'value'),
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
     Input('context', 'value'),
@@ -535,7 +570,7 @@ def update_graph(
         reload,
         generate_graph_upload,
         keyword,
-        #num_of_sentences,
+        # num_of_sentences,
         slider_nodes,
         slider_edges,
         contextualize,
@@ -572,22 +607,21 @@ def update_graph(
 
     # check for special triggers
     if ctx_msg['triggered']:
-        # # if data was uploaded
-        # if ctx_msg['triggered'][0]['prop_id'] == 'upload-data.contents':
-        #     print(list_of_names)
-        #     example_id = f'uploaded_example_{list_of_names[0]}'
-        # if keyword or sliders triggered an update
-        prop_ids = ['keyword-input.value', 'slider_nodes.value', 'slider_edges.value']
+        # check if trigger is in the following list
+        prop_ids = ['keyword-input.value',
+                    'slider_nodes.value',
+                    'slider_edges.value']
         if ctx_msg['triggered'][0]['prop_id'] in prop_ids:
+            # current example must be stored in session
             assert 'current_example' in stored_values[session_id].keys()
             example_id = stored_values[session_id]['current_example']
 
-    # check if experiment has run already
+    # check if user wants to reload graph
     if reload_graph_value:
         print(ctx_msg['states']['reload-graph-dropdown.value'])
         example_id = reload_graph_value
 
-    # create new example id - refers to dropdown
+    # create new example id
     if not example_id:
         # check if num of sentences was changed for current example
         if num_of_sentences:
@@ -623,11 +657,11 @@ def update_graph(
         elif 'Candas' in example_id:
             candas_keyword = example_id.split('_')[1]
             sentences = get_candas_doc(candas_keyword)
-        elif example_id.startswith('upload'):  # todo add csv feature
+        elif example_id.startswith('upload'):
             content_type, content_string = list_of_contents[0].split(',')
             decoded = base64.b64decode(content_string)
             if 'csv' in list_of_names[0]:
-                # columns: class, sentence
+                # csv must contain both columns: class, sentence
                 uploaded_df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
                 stored_values[session_id]['uploaded_csv'][example_id] = uploaded_df
                 sentences = uploaded_df['sentence'].tolist()
@@ -646,7 +680,7 @@ def update_graph(
         for sentence in sentences:
             wraped_sentence = []
             for idx, word in enumerate(sentence.split()):
-                if idx % 20 == 0:
+                if idx % 20 == 0 and idx != 0:
                     wraped_sentence.append(f'<br>{word}')
                 else:
                     wraped_sentence.append(word)
@@ -667,11 +701,12 @@ def update_graph(
         sim_mat = scaler.fit_transform(sim_mat.flatten().reshape(-1, 1)).reshape(len(embeddings), len(embeddings))
         np.fill_diagonal(sim_mat, 0)
 
+        # todo feature: cluster data before pagerank
         # calculate pagerank
         nx_graph = nx.from_numpy_array(sim_mat)
         scores = nx.pagerank(nx_graph, max_iter=500)  # number of cycles to converge
 
-        # FEATURE: select the number of sentences
+        # FEATURE: select number of sentences
         if not num_of_sentences:
             score_list = [scores[sent_idx] for sent_idx in range(len(sentences))]
         else:
@@ -706,7 +741,7 @@ def update_graph(
     else:
         sentences, embeddings, sim_mat, score_list, pos = stored_values[session_id][example_id]
 
-    # FEATURE: zoom nodes that contain entered keyword
+    # FEATURE: wrap sentences with neighbour sentences # todo: add option to select number of neighbour sentences
     if contextualize == 'yes':
         sentences = get_context_for_sentences(sentences)
 
@@ -992,26 +1027,6 @@ def update_graph(
     return fig, experiments, '', '', '',
 
 
-# #side bar call back start
-# @app.callback(
-#     Output('main-fig', 'clickData'),
-#     [Input('main-fig', 'hoverData')])
-# def display_hover_data(clickData):
-#     print('Hover !!!')
-
-
-@app.callback(
-    Output('upload-data', 'value'),
-    Input('main-fig', 'clickData'),
-    State('main-fig', 'figure')
-)
-def callback(selection, fig):
-    labels = ['hovertemplate', 'text']
-    for label in labels:
-        if label in selection['points'][0].keys():
-            sentence = selection['points'][0][label]
-            print(sentence)
-
-
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True, dev_tools_hot_reload=False)  # Turn off reloader if inside Jupyter
+    app.run_server(host='0.0.0.0', debug=True, dev_tools_hot_reload=False,
+                   port=8050)
