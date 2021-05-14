@@ -40,7 +40,7 @@ def load_sentences_from_cro_comments_vecernji(idx):
     return lines
 
 
-def get_context_for_sentences(sentences):
+def get_context_for_sentences(sentences, n=1):
     context = []
     for idx, sent in enumerate(sentences):
         if idx == 0:
@@ -49,7 +49,17 @@ def get_context_for_sentences(sentences):
             context.append('END : ' + sent)
             break
         else:
-            p = sentences[idx - 1] + '<br><br>' + str(idx) + ' : ' + sent + '<br><br>' + sentences[idx + 1]
+            if idx-n < 0:
+                sent_before = '<br>'.join(sentences[:idx])
+                sent_after = '<br>'.join(sentences[idx+1:idx+n+1])
+            elif idx+n > len(sentences):
+                sent_before = '<br>'.join(sentences[idx-n:idx])
+                sent_after = '<br>'.join(sentences[idx+1:])
+            else:
+                sent_before = '<br>'.join(sentences[idx-n:idx])
+                sent_after = '<br>'.join(sentences[idx+1:idx+n+1])
+            # build context
+            p = sent_before + '<br><br>' + str(idx) + ' : ' + sent + '<br><br>' + sent_after
             context.append(p)
     return context
 

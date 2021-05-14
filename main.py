@@ -399,7 +399,15 @@ def serve_layout():
                                    style={
                                        'display': 'inline-block',
                                        'margin-left': '10px'},
-                                   )
+                                   ),
+
+                    html.H6('Select context size:', style={'margin-top': '15px'}),
+                    dcc.Input(id='context-size',
+                              type="number",
+                              value=1,
+                              # style={'width': "20%"},
+                              debounce=True)
+
                 ], body=True), width=2, style={'margin-top': '15px'}),
 
             ], style={'margin': '15px'}),
@@ -562,6 +570,7 @@ def generate_csv(n_nlicks, sentence_div):
     Input('slider_nodes', 'value'),
     Input('slider_edges', 'value'),
     Input('context', 'value'),
+    Input('context-size', 'value'),
 
     State('upload-data', 'contents'),
     State('upload-data', 'filename'),
@@ -584,6 +593,7 @@ def update_graph(
         slider_nodes,
         slider_edges,
         contextualize,
+        context_size,
 
         # STATES
         list_of_contents,
@@ -751,9 +761,9 @@ def update_graph(
     else:
         sentences, embeddings, sim_mat, score_list, pos = stored_values[session_id][example_id]
 
-    # FEATURE: wrap sentences with neighbour sentences # todo: add option to select number of neighbour sentences
+    # FEATURE: wrap sentences with neighbour sentences 
     if contextualize == 'yes':
-        sentences = get_context_for_sentences(sentences)
+        sentences = get_context_for_sentences(sentences, n=context_size)
 
     # FEATURE: zoom nodes that contain entered keyword
     if keyword:
