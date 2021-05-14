@@ -761,7 +761,7 @@ def update_graph(
     else:
         sentences, embeddings, sim_mat, score_list, pos = stored_values[session_id][example_id]
 
-    # FEATURE: wrap sentences with neighbour sentences 
+    # FEATURE: wrap sentences with neighbour sentences
     if contextualize == 'yes':
         sentences = get_context_for_sentences(sentences, n=context_size)
 

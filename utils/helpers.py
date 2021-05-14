@@ -44,10 +44,9 @@ def get_context_for_sentences(sentences, n=1):
     context = []
     for idx, sent in enumerate(sentences):
         if idx == 0:
-            context.append('LEAD : ' + sent)
+            context.append('LEAD : ' + sent + '<br><br>' + '<br>'.join(sentences[1:n+1]))
         elif idx == len(sentences) - 1:
-            context.append('END : ' + sent)
-            break
+            context.append('<br>'.join(sentences[-n-1:-1]) + '<br><br>' + 'END : ' + sent)
         else:
             if idx-n < 0:
                 sent_before = '<br>'.join(sentences[:idx])
@@ -58,7 +57,6 @@ def get_context_for_sentences(sentences, n=1):
             else:
                 sent_before = '<br>'.join(sentences[idx-n:idx])
                 sent_after = '<br>'.join(sentences[idx+1:idx+n+1])
-            # build context
             p = sent_before + '<br><br>' + str(idx) + ' : ' + sent + '<br><br>' + sent_after
             context.append(p)
     return context
