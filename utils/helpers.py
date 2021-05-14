@@ -49,7 +49,7 @@ def get_context_for_sentences(sentences):
             context.append('END : ' + sent)
             break
         else:
-            p = sentences[idx - 1] + '<br><br>' + str(idx) + ' : ' + sent + '<br>' + sentences[idx + 1]
+            p = sentences[idx - 1] + '<br><br>' + str(idx) + ' : ' + sent + '<br><br>' + sentences[idx + 1]
             context.append(p)
     return context
 

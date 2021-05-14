@@ -170,7 +170,7 @@ def serve_layout():
                         dbc.Row([
 
                             dbc.Col([
-                                html.H6('Select:', style={'margin-top': '15px'}),
+                                html.H6('Select grouping type:', style={'margin-top': '15px'}),
                                 dcc.RadioItems(
                                     id='radioitems',
                                     options=[
@@ -315,7 +315,7 @@ def serve_layout():
                                     id="download_button",
                                     style={'background-color': 'lightskyblue',
                                            'margin-top': '15px',
-                                           'width': '40%',
+                                           #'width': '40%',
                                            'text-align': 'center',
                                            }),
                         dcc.Download(id="download"),
@@ -550,6 +550,7 @@ def generate_csv(n_nlicks, sentence_div):
     Output('reload-graph-dropdown', 'options'),  # update options of graph reload
     Output('reload-graph-dropdown', 'value'),  # to clear reload dropdown
     Output('loading-output-1', 'children'),  # message to display instead of the loading button
+    # Output('upload-data', 'filename'),  # clear uploaded filenames
     Output('select_dataset-dropdown', 'value'),  # to clear demo datasets dropdown
     # Output('num_of_clusters-input', 'value'),  # to clear num of clusters
 
@@ -563,12 +564,11 @@ def generate_csv(n_nlicks, sentence_div):
     Input('context', 'value'),
 
     State('upload-data', 'contents'),
+    State('upload-data', 'filename'),
     State('reload-graph-dropdown', 'options'),
     State('reload-graph-dropdown', 'value'),
     State('select_dataset-dropdown', 'value'),
     State('select_language', 'value'),
-    State('upload-data', 'filename'),
-    State('upload-data', 'last_modified'),
     State('session-id', 'data'),
     State('radioitems', 'value'),
     State('num_of_clusters-input', 'value'),
@@ -587,16 +587,17 @@ def update_graph(
 
         # STATES
         list_of_contents,
+        list_of_names,
         experiments,
         reload_graph_value,
-        dataset,
+        preloaded_dataset,
         langid,
-        list_of_names,
-        list_of_dates,
         session_id,
         radioitem_value,
         num_of_clusters
 ):
+
+    print(list_of_names)
     # save session in stored_values if it does not exist yet
     if session_id not in stored_values.keys():
         stored_values[session_id] = {}
@@ -633,25 +634,24 @@ def update_graph(
 
     # create new example id
     if not example_id:
+        # create example ID if preloaded dataset is chosen
+        if preloaded_dataset:
+            if 'Candas' in preloaded_dataset:
+                dataset_name, candas_keyword = preloaded_dataset.split(':')
+                example_id = f'{dataset_name}_{candas_keyword}_{num_of_sentences}'
+            else:
+                example_id = f'{preloaded_dataset}_{num_of_sentences}'
+
         # check if num of sentences was changed for current example
-        if num_of_sentences:
+        elif num_of_sentences:
             example_id = '_'.join(
                 stored_values[session_id]['current_example'].split('_')[:-1])  # remove num_of_sent from current example
             example_id = example_id + f'_{num_of_sentences}'  # add num_of_sents info
 
         # catch upload data
-        elif list_of_contents:
+        elif list_of_names:
             print(list_of_names)
             example_id = f'upload_{list_of_names[0]}_{radioitem_value}'
-
-        # create example ID for Candas settings
-        elif 'Candas' in dataset:
-            dataset_name, candas_keyword = dataset.split(':')
-            example_id = f'{dataset_name}_{candas_keyword}_{num_of_sentences}'
-
-        # other:
-        else:
-            example_id = f'{dataset}_{num_of_sentences}'
 
     # store example id as current example
     stored_values[session_id]['current_example'] = example_id
