@@ -1,6 +1,5 @@
 import pandas as pd
 import nltk
-nltk.download('punkt')
 
 
 def get_uploaded_example_txt(decoded, langid):

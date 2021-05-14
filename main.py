@@ -21,16 +21,15 @@ from utils.datasets import get_candas_doc, \
     get_generic_translations
 
 import numpy as np
+import nltk
 
-import base64
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
-from dash_extensions import Download
-from dash_extensions.snippets import send_data_frame
 
+import base64
 import os
 import io
 import uuid
@@ -42,6 +41,9 @@ stored_values = {}
 active_sessions = {}
 
 SBERT_PATH = f'{os.path.abspath(os.getcwd())}/data/encoders/xlm-r-100langs-bert-base-nli-stsb-mean-tokens'
+NLTK_PATH = f'{os.path.abspath(os.getcwd())}/data/nltk_resources'
+if NLTK_PATH not in nltk.data.path:
+    nltk.data.path.append(NLTK_PATH)
 
 # Sentence encoders and dimensionality reduction methods
 encoders = {
@@ -149,17 +151,11 @@ def serve_layout():
                             id='upload-data',
                             children=html.Div([
                                 # 'Drag and Drop or ',
-                                html.Button('Upload file')
+                                html.Button('Upload file',
+                                            style={'background-color': 'lightskyblue'}, )
                             ]),
                             style={
-                                # 'width': '40%',
-                                # 'height': '60px',
-                                # 'lineHeight': '60px',
-                                # 'borderWidth': '1px',
-                                # 'borderStyle': 'dashed',
-                                # 'borderRadius': '5px',
-                                # 'textAlign': 'center',
-                                'margin-top': '10px'
+                                'margin-top': '10px',
                             },
                             disabled=False,
                             # Allow multiple files to be uploaded
@@ -314,8 +310,11 @@ def serve_layout():
                         html.Button("Download sentences",
                                     id="download_button",
                                     style={'background-color': 'lightskyblue',
-                                           'margin-top': '15px'}),
-                        Download(id="download"),
+                                           'margin-top': '15px',
+                                           'width': '40%',
+                                           'text-align': 'center',
+                                           }),
+                        dcc.Download(id="download"),
                     ], body=True, style={'height': '470px'})
 
                 ], width=6)
@@ -488,7 +487,8 @@ def disable_upload_button(filename, generate_button):
     else:
         output_text = html.Div([
             # 'Drag and Drop or ',
-            html.Button('Upload file')
+            html.Button('Upload file',
+                        style={'background-color': 'lightskyblue'}, )
         ])
         return False, output_text
 
@@ -510,29 +510,31 @@ def callback(selection, sentence_div):
             # build entry
             entry = [
                 {
-                'props': {
-                    'children': sentence
-                },
-                'type': 'P',
-                'namespace': 'dash_html_components'
+                    'props': {
+                        'children': sentence
+                    },
+                    'type': 'P',
+                    'namespace': 'dash_html_components'
                 }
             ]
             print(sentence)
             return entry + sentence_div
+    # when no point was selected
+    return sentence_div
 
 
 # download selected sentences
 @app.callback(Output("download", "data"),
               Input("download_button", "n_clicks"),
               State('sentence-div', 'children')
-)
+              )
 def generate_csv(n_nlicks, sentence_div):
     # create a list of sentences
     sentences = [entry['props']['children'] for entry in sentence_div]
     df = pd.DataFrame({
         'sentences': sentences
     })
-    return send_data_frame(df.to_csv, filename="selected_sentences.csv")
+    return dcc.send_data_frame(df.to_csv, filename="selected_sentences.csv")
 
 
 # main callback
@@ -565,7 +567,8 @@ def generate_csv(n_nlicks, sentence_div):
     State('num_of_clusters-input', 'value'),
 )
 def update_graph(
-        # inputs
+
+        # INPUTS
         submit,
         reload,
         generate_graph_upload,
@@ -575,7 +578,7 @@ def update_graph(
         slider_edges,
         contextualize,
 
-        # states
+        # STATES
         list_of_contents,
         experiments,
         reload_graph_value,
@@ -1028,5 +1031,4 @@ def update_graph(
 
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True, dev_tools_hot_reload=False,
-                   port=8050)
+    app.run_server(host='0.0.0.0', debug=True, port=8050)  # debug=True, dev_tools_hot_reload=False
