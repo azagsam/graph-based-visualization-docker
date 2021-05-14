@@ -118,6 +118,10 @@ def serve_layout():
                     [
                         dbc.NavLink("Home", active=True, href="/"),
                         dbc.NavLink("Instructions", href="/instructions"),
+                        dcc.Loading(id="loading-1",
+                                    children=[html.Div(id="loading-output-1", style={'margin-left': '150px'})],
+                                    type="default",
+                                    ),
 
                     ], style={'margin-left': '30px'}
                 )
@@ -215,11 +219,11 @@ def serve_layout():
                                     style={'background-color': 'lightskyblue'},
                                     n_clicks=0,
                                     ),
-                        dcc.Loading(id="loading-1",
-                                    children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
-                                    type="circle",
-                                    style={'margin': '10px', 'font-size': '50x'}
-                                    ),
+                        # dcc.Loading(id="loading-1",
+                        #             children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
+                        #             type="circle",
+                        #             style={'margin': '10px', 'font-size': '50x'}
+                        #             ),
 
                     ], body=True, style={'height': '470px'}),
                 ], width=3),
@@ -325,7 +329,10 @@ def serve_layout():
             # Figure
             dbc.Row([
 
-                dbc.Col([dbc.Card(dcc.Graph(id='main-fig'), body=True)], width=10, style={'margin-top': '15px'}),
+                dbc.Col([dbc.Card(
+                    # dcc.Loading(dcc.Graph(id='main-fig')), body=True)], width=10, style={'margin-top': '15px'}),
+                dcc.Graph(id='main-fig'), body=True)], width = 10, style = {'margin-top': '15px'}),
+
 
                 dbc.Col(dbc.Card([
 
