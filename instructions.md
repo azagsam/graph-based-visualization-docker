@@ -23,7 +23,7 @@ Graphs are constructed in two steps:
    you can scale nodes size; higher number will emphasize larger nodes and make smaller ones smaller. Edges 
    threshold is a single cut-off value that either shows or hides connections between sentences; a very high value 
    will connect only sentences that highly correspond in their meaning (in extreme cases only duplicates). You may 
-   also wnat to contextualize your data. 
+   also want to contextualize your data. 
    
 
 

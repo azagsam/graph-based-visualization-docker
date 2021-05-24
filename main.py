@@ -131,103 +131,6 @@ def serve_layout():
             # Data import
             dbc.Row([
 
-                # Upload your data
-                dbc.Col([
-                    dbc.Card([
-
-                        html.H2(html.Strong('Upload data')),
-
-                        html.H6('Select language:'),
-                        dcc.Dropdown(id="select_language",
-                                     options=[
-                                         {"label": "Slovene", "value": 'slovene'},
-                                         {"label": "English", "value": 'english'},
-                                         {"label": "German", "value": 'german'},
-                                     ],
-                                     multi=False,
-                                     placeholder="Select language",
-                                     value='slovene',
-                                     # style={'width': "40%"}
-                                     ),
-                        html.Div(id='select_language-output-container'),
-
-                        dcc.Upload(
-                            id='upload-data',
-                            children=html.Div([
-                                # 'Drag and Drop or ',
-                                html.Button('Upload file',
-                                            style={'background-color': 'lightskyblue'}, )
-                            ]),
-                            style={
-                                'margin-top': '10px',
-                            },
-                            disabled=False,
-                            # Allow multiple files to be uploaded
-                            multiple=True
-                        ),
-                        html.Div(id='output-data-upload'),
-
-                        dbc.Row([
-
-                            dbc.Col([
-                                html.H6('Select grouping type:', style={'margin-top': '15px'}),
-                                dcc.RadioItems(
-                                    id='radioitems',
-                                    options=[
-                                        {'label': ' No groups', 'value': 'None'},
-                                        {'label': ' Cluster', 'value': 'cluster'},
-                                        {'label': ' Classes', 'value': 'classes'},
-                                    ],
-                                    labelStyle={'display': 'block',
-                                                'margin': '7px',
-                                                },
-                                    style={
-                                        'display': 'inline-block',
-                                        'margin-left': '10px'},
-                                    value='None'
-                                ),
-                            ]),
-
-                            # dbc.Col([
-                            #     html.H6('Enter number of clusters:',
-                            #             style={'margin-top': '15px'}),
-                            #     dcc.Input(id="num_of_clusters-input",
-                            #               type="number",
-                            #               disabled=True,
-                            #               placeholder="Enter num of clusters",
-                            #               # value=5,
-                            #               # style={'width': "20%"},
-                            #               # debounce=False
-                            #               ),
-                            # ]),
-
-                        ]),
-
-                        html.H6('Enter number of clusters:',
-                                style={'margin-top': '9px'}),
-                        dcc.Input(id="num_of_clusters-input",
-                                  type="number",
-                                  disabled=True,
-                                  placeholder="Enter num of clusters",
-                                  # value=5,
-                                  # style={'width': "20%"},
-                                  # debounce=False
-                                  ),
-                        html.H6('Generate graph:', style={'margin-top': '15px'}),
-                        html.Button('Generate graph',
-                                    id='generate-graph-upload',
-                                    style={'background-color': 'lightskyblue'},
-                                    n_clicks=0,
-                                    ),
-                        # dcc.Loading(id="loading-1",
-                        #             children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
-                        #             type="circle",
-                        #             style={'margin': '10px', 'font-size': '50x'}
-                        #             ),
-
-                    ], body=True, style={'height': '470px'}),
-                ], width=3),
-
                 # Demo datasets
                 dbc.Col([
                     dbc.Card([
@@ -303,12 +206,113 @@ def serve_layout():
 
                 ], width=3),
 
+                # Upload your data
+                dbc.Col([
+                    dbc.Card([
+
+                        html.H2(html.Strong('Upload data')),
+
+                        html.H6('Select language:'),
+                        dcc.Dropdown(id="select_language",
+                                     options=[
+                                         {"label": "Slovene", "value": 'slovene'},
+                                         {"label": "English", "value": 'english'},
+                                         {"label": "German", "value": 'german'},
+                                     ],
+                                     multi=False,
+                                     placeholder="Select language",
+                                     value='slovene',
+                                     # style={'width': "40%"}
+                                     ),
+                        html.Div(id='select_language-output-container'),
+
+                        dcc.Upload(
+                            id='upload-data',
+                            children=html.Div([
+                                html.Button('Upload file',
+                                            style={'background-color': 'lightskyblue'}, )
+                            ]),
+                            style={
+                                'margin-top': '10px',
+                            },
+                            disabled=False,
+                            # Allow multiple files to be uploaded
+                            multiple=True
+                        ),
+                        html.Div(id='output-data-upload'),
+
+                        dbc.Row([
+
+                            dbc.Col([
+                                html.H6('Select grouping type:', style={'margin-top': '15px'}),
+                                dcc.RadioItems(
+                                    id='radioitems',
+                                    options=[
+                                        {'label': ' No groups', 'value': 'None'},
+                                        {'label': ' Cluster', 'value': 'cluster'},
+                                        {'label': ' Classes', 'value': 'classes'},
+                                    ],
+                                    labelStyle={'display': 'block',
+                                                'margin': '7px',
+                                                },
+                                    style={
+                                        'display': 'inline-block',
+                                        'margin-left': '10px'},
+                                    value='None'
+                                ),
+                            ]),
+
+                            # dbc.Col([
+                            #     html.H6('Enter number of clusters:',
+                            #             style={'margin-top': '15px'}),
+                            #     dcc.Input(id="num_of_clusters-input",
+                            #               type="number",
+                            #               disabled=True,
+                            #               placeholder="Enter num of clusters",
+                            #               # value=5,
+                            #               # style={'width': "20%"},
+                            #               # debounce=False
+                            #               ),
+                            # ]),
+
+                        ]),
+
+                        html.H6('Enter number of clusters:',
+                                style={'margin-top': '9px'}),
+                        dcc.Input(id="num_of_clusters-input",
+                                  type="number",
+                                  disabled=True,
+                                  placeholder="Enter num of clusters",
+                                  # value=5,
+                                  # style={'width': "20%"},
+                                  # debounce=False
+                                  ),
+                        html.H6('Generate graph:', style={'margin-top': '15px'}),
+                        html.Button('Generate graph',
+                                    id='generate-graph-upload',
+                                    style={'background-color': 'lightskyblue'},
+                                    n_clicks=0,
+                                    ),
+                        # dcc.Loading(id="loading-1",
+                        #             children=[html.Div(id="loading-output-1", style={'margin': '100px'})],
+                        #             type="circle",
+                        #             style={'margin': '10px', 'font-size': '50x'}
+                        #             ),
+
+                    ], body=True, style={'height': '470px'}),
+                ], width=3),
+
+                # User selected sentences
                 dbc.Col([
                     dbc.Card([
                         # html.H2(html.Strong('Multilingual Text Exploration')),
                         # html.H6(f'Session ID: {session_id}'),
-                        html.H2(html.Strong('Selected sentences')),
-                        html.Div([], style={'height': '400px', "overflow": "scroll"}, id='sentence-div'),
+                        html.H2(html.Strong('User selected sentences')),
+                        html.H6('Selected sentences from the graph will appear here:'),
+                        html.Div([], style={'height': '400px',
+                                            "overflow": "scroll",
+                                            'border-style': 'solid',
+                                            'border-width': '1px'}, id='sentence-div'),
 
                         # html.H6(f'Download selected sentences:'),
                         html.Button("Download sentences",
@@ -447,20 +451,21 @@ well they correlate.
 ## Usage
 Graphs are constructed in two steps:
 
-1) In the first row, you have three cards: demo datasets, upload your data, and reload graph. Through 
-   these three cards, you configure and import your data. 
-   The "Demo datasets" card contain preloaded experiments that show many different ways to present the data. 
-   After you run an experiment, it is saved into the memory 
-   so that you can reload it fast with the "Reload graph" card. "Upload you data" enables you to import your own data. 
-   Before you make an upload, you need to specify the language of your text. 
+1) In the first row, you have three cards, from which you can configure data: demo datasets, upload your data, and 
+   reload graph. The "Demo datasets" card contain preloaded experiments that show many ways to construct the graph. 
+   After you run an experiment, it is saved into the memory, and can be reloaded fast with the "Reload graph" card. 
+   "Upload you data" enables you to import your own data. Before you make an upload, you need to specify the 
+   language of your text. You may want to cluster your data, or you have a csv file that contains pre-defined classes 
+   (in that case, a csv file must contain pre-tokenized sentences, and two columns with names "class" and "sentence"). 
    
    
 2) In the second row, the graph figure is presented on the left. On the right, the 'Adjust graph' card contains 
    options to update the graph. If you enter a keyword, all nodes that contain this keyword, will become the largest 
    in the graph. You can limit the number of sentences if you have a large set. For purely visualization purposes, 
-   you can scale nodes size; higher number will emphasize larger nodes and make smaller ones even smaller. Edges 
+   you can scale nodes size; higher number will emphasize larger nodes and make smaller ones smaller. Edges 
    threshold is a single cut-off value that either shows or hides connections between sentences; a very high value 
-   will connect only sentences that highly correspond in their meaning (in extreme cases only duplicates). 
+   will connect only sentences that highly correspond in their meaning (in extreme cases only duplicates). You may 
+   also want to contextualize your data. 
     
     ''')], style={'width': '60rem', 'margin': '30px'})
 
@@ -607,7 +612,6 @@ def update_graph(
         num_of_clusters
 ):
 
-    print(list_of_names)
     # save session in stored_values if it does not exist yet
     if session_id not in stored_values.keys():
         stored_values[session_id] = {}
