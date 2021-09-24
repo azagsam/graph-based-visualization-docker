@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import networkx as nx
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import MinMaxScaler
+import umap
 
 from utils.helpers import load_sentences_from_file, load_sentences_from_AutoSentiNews, \
     load_sentences_from_cro_comments, scale_centrality_scores, \
@@ -55,7 +56,7 @@ encoders = {
 
 reduction_methods = {
     'pca': PCA,
-    # 'umap': umap.UMAP,
+    'umap': umap.UMAP,
     # 't-sne': TSNE,
     'None': None
 }
@@ -754,8 +755,8 @@ def update_graph(
             sim_mat = np.asarray(reduced_sim_mat)
 
         # reduce dimensionality
-        rec_method_name = 'pca'
-        reduction_method = reduction_methods['pca']
+        rec_method_name = 'umap'
+        reduction_method = reduction_methods['umap']
         print(rec_method_name)
         assert rec_method_name != 'None'
         rm = reduction_method(**reduction_methods_params[rec_method_name])
